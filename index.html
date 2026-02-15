@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Ring Runner X</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: black;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial;
+            font-size: 22px;
+        }
+
+        #combo {
+            position: absolute;
+            top: 50px;
+            left: 20px;
+            color: cyan;
+            font-family: Arial;
+            font-size: 18px;
+        }
+
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-family: Arial;
+            font-size: 40px;
+            display: none;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="ui">Score: 0</div>
+    <div id="combo">Combo: x1</div>
+    <div id="gameOver">GAME OVER<br><br>Click to Restart</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
+
+    <script>
+        let scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x000000, 15, 120);
+
+        let camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        let renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Light
+        const light = new THREE.PointLight(0xffffff, 2, 100);
+        light.position.set(0, 10, 10);
+        scene.add(light);
+
+        // Starfield
+        const stars = new THREE.BufferGeometry();
+        const starVertices = [];
+        for (let i = 0; i < 2000; i++) {
+            starVertices.push((Math.random() - 0.5) * 200);
+            starVertices.push(Math.random() * 100);
+            starVertices.push((Math.random() - 0.5) * 200);
+        }
+        stars.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+        const starMaterial = new THREE.PointsMaterial({ color: 0xffffff });
+        const starField = new THREE.Points(stars, starMaterial);
+        scene.add(starField);
+
+        // Ground
+        const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(50, 1000),
+            new THREE.MeshStandardMaterial({ color: 0x001100 })
+        );
+        ground.rotation.x = -Math.PI / 2;
+        scene.add(ground);
+
+        // Ball
+        const ball = new THREE.Mesh(
+            new THREE.SphereGeometry(0.5, 32, 32),
+            new THREE.MeshStandardMaterial({
+                color: 0xff0055,
+                emissive: 0xff0033,
+                emissiveIntensity: 1
+            })
+        );
+        ball.position.y = 0.5;
+        scene.add(ball);
+
+        // Trail
+        const trail = [];
+        function createTrail() {
+            const t = new THREE.Mesh(
+                new THREE.SphereGeometry(0.3, 16, 16),
+                new THREE.MeshBasicMaterial({ color: 0xff0044, transparent: true, opacity: 0.5 })
+            );
+            scene.add(t);
+            trail.push(t);
+        }
+        for (let i = 0; i < 10; i++) createTrail();
+
+        let rings = [];
+        let score = 0;
+        let combo = 1;
+        let speed = 0.4;
+        let mouseX = 0;
+        let gameOver = false;
+        let shake = 0;
+
+        // Controls
+        document.addEventListener("mousemove", e => {
+            mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+        });
+
+        document.addEventListener("touchmove", e => {
+            mouseX = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+        });
+
+        document.addEventListener("keydown", e => {
+            if (e.code === "Space") speed += 0.5; // boost
+        });
+
+        // Ring
+        function createRing(z) {
+            const ring = new THREE.Mesh(
+                new THREE.TorusGeometry(2, 0.3, 32, 200),
+                new THREE.MeshStandardMaterial({
+                    color: 0xffff00,
+                    emissive: 0xffaa00,
+                    emissiveIntensity: 0.8
+                })
+            );
+            ring.rotation.x = Math.PI / 2;
+            ring.position.set((Math.random() - 0.5) * 6, 2, z);
+            scene.add(ring);
+            rings.push(ring);
+        }
+
+        for (let i = 0; i < 6; i++) createRing(-i * 25 - 30);
+
+        // Restart
+        document.body.addEventListener("click", () => {
+            if (gameOver) location.reload();
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (!gameOver) {
+
+                // Ball movement
+                ball.position.x += (mouseX * 5 - ball.position.x) * 0.1;
+                ball.position.z -= speed;
+
+                // Trail follow
+                trail.forEach((t, i) => {
+                    t.position.copy(ball.position);
+                    t.position.z += i * 0.5;
+                    t.material.opacity = 0.5 - i * 0.04;
+                });
+
+                // Camera follow + shake
+                camera.position.z = ball.position.z + 10 + (Math.random() - 0.5) * shake;
+                camera.position.y = 4;
+                camera.position.x = (Math.random() - 0.5) * shake;
+                camera.lookAt(ball.position);
+                shake *= 0.9;
+
+                rings.forEach(r => {
+                    r.rotation.z += 0.1;
+                    r.scale.setScalar(1 + Math.sin(Date.now() * 0.005) * 0.1);
+
+                    if (!r.passed && ball.position.z < r.position.z) {
+                        r.passed = true;
+
+                        let dx = ball.position.x - r.position.x;
+                        let dy = ball.position.y - r.position.y;
+                        let dist = Math.sqrt(dx * dx + dy * dy);
+
+                        if (dist < 2) {
+                            score += combo;
+                            combo++;
+                            speed += 0.02;
+                            document.getElementById("ui").innerText = "Score: " + score;
+                            document.getElementById("combo").innerText = "Combo: x" + combo;
+                        } else {
+                            gameOver = true;
+                            shake = 2;
+                            document.getElementById("gameOver").style.display = "block";
+                        }
+                    }
+
+                    if (r.position.z > ball.position.z + 5) {
+                        r.position.z -= 160;
+                        r.position.x = (Math.random() - 0.5) * 6;
+                        r.passed = false;
+                    }
+                });
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        camera.position.set(0, 4, 10);
+        animate();
+    </script>
+</body>
+
+</html>
