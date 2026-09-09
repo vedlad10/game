@@ -108,6 +108,24 @@ npm run typecheck
 npm run build
 ```
 
+### Verifying the live integration
+
+`npm run preflight` drives the **real** `LiveSource` against Shannon testnet and
+reports, step by step, which part of the integration works — connect, discover
+series, find the open round, read the book, read the oracle, resolve the opening
+level, quote a stake, and (opt-in) place one real order.
+
+```sh
+npm run preflight                                   # read-only, no wallet, no gas
+SOMNIA_KEY=0xabc… npm run preflight                 # + balance and faucet
+SOMNIA_KEY=0xabc… SOMNIA_BET=1 npm run preflight    # + ONE real order (spends collateral)
+SOMNIA_NETWORK=mainnet npm run preflight            # against mainnet instead
+```
+
+It is excluded from `npm test` so the offline suite stays green, and each step
+prints what it found — a failure tells you *where* the integration stands rather
+than just going red. This is the check to run before recording a demo.
+
 ## How it is put together
 
 ```

@@ -3,13 +3,14 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "STREAK — the one-tap Up/Down arcade for Somnia event contracts",
+  "description": "STREAK \u2014 the one-tap Up/Down arcade for Somnia event contracts",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "test": "vitest run --exclude \"**/*.preflight.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "preflight": "SOMNIA_LIVE=1 vitest run preflight"
   },
   "dependencies": {
     "@somnia-chain/markets-sdk": "^0.29.0",

@@ -52,6 +52,17 @@ Show the burner-wallet button. Say: *"One click gives you an address, the faucet
 gives you collateral, and you're trading event contracts in under a minute.
 That's the adoption gap this closes."*
 
+## Before anything else: run the preflight
+
+```sh
+SOMNIA_KEY=0x… npm run preflight
+```
+
+Ten steps against the real venue, in dependency order. Green through step 7 means
+the read path works and the UI will have odds to draw. Add `SOMNIA_BET=1` to place
+one real order and prove the write path. Fix whatever it flags **before** recording
+— the brief requires a working prototype on testnet, and this is the evidence.
+
 ## Things to have ready before recording
 
 - [ ] Testnet STT in the wallet for gas (the collateral faucet mints tUSDC, not gas)
