@@ -100,9 +100,9 @@ export function WalletPanel({
               {network.hasFaucet && (
                 <>
                   {" "}
-                  Transactions need testnet SOMI for gas — grab some from the{" "}
+                  Transactions need testnet STT for gas — request it from the{" "}
                   <a href="https://testnet.somnia.network/" target="_blank" rel="noreferrer">
-                    Somnia faucet
+                    Somnia testnet faucet
                   </a>{" "}
                   if a bet is rejected for funds.
                 </>

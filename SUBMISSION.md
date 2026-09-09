@@ -54,13 +54,25 @@ That's the adoption gap this closes."*
 
 ## Things to have ready before recording
 
-- [ ] Testnet SOMI in the wallet for gas (the collateral faucet does not mint gas)
-- [ ] Test USDC minted
+- [ ] Testnet STT in the wallet for gas (the collateral faucet mints tUSDC, not gas)
+- [ ] tUSDC collateral minted
 - [ ] A 1m series with resting liquidity on both sides — a one-sided book shows
       "no liquidity" and disables that button, which is correct but reads badly
       on camera
 - [ ] Browser console closed, no extensions bar
 - [ ] `?mode=demo` in a second tab as a fallback if the venue is quiet
+
+## How this maps to the judging criteria
+
+| Criterion | Weight | Where it lands |
+|---|---|---|
+| Innovation & Originality | 20% | An arcade surface for Event Contracts rather than another analytics dashboard; scoring weighted by entry probability rather than volume |
+| Technical Implementation | 25% | Same SDK the official template pins, on the same chain; live book, oracle price, opening-price reference, IOC orders, automatic redeem. **Weak spot: the live path has not been run against a live venue** |
+| User Experience & Design | 20% | One tap to trade, countdown-first layout, chart coloured against the level that decides the round, burner wallet for zero-setup entry, mobile clean |
+| Business & Ecosystem Impact | 20% | Directly targets the adoption gap: turns a probability-pricing task into a direction-picking one, which is the argument for new users and new trading activity |
+| Presentation & Demo | 15% | Script above; lead with the adoption problem, not the stack |
+
+Also submitted: `FEEDBACK.md`, the optional SDK/documentation feedback report.
 
 ## Submission checklist
 
@@ -70,6 +82,7 @@ That's the adoption gap this closes."*
 - [ ] Description: lead with the adoption argument, not the tech stack
 - [ ] Screenshots: the round card mid-countdown, and a settled winning ticket
 - [ ] Tag the tracks that fit: consumer trading app, and social/gamified
+- [ ] Optional: link `FEEDBACK.md` as the SDK/documentation feedback report
 
 ## What to say if a judge asks "is this really on-chain?"
 

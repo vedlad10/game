@@ -90,7 +90,8 @@ Fastest path on testnet:
 1. Open the demo, click **Play with a burner** — a throwaway key is generated in
    your browser. It is disposable and labelled as such; never fund it with
    anything real.
-2. Get testnet SOMI for gas from the [Somnia faucet](https://testnet.somnia.network/).
+2. Get testnet **STT** for gas from the [Somnia testnet faucet](https://testnet.somnia.network/)
+   (the hackathon Telegram also hands out STT).
 3. Click **Mint test USDC** for collateral.
 4. Pick a side before the countdown hits zero.
 
@@ -160,10 +161,22 @@ the balance.
   access to Somnia, so the live path has not been exercised against a running
   venue. The simulation path is fully verified end to end. Anyone running this
   against testnet should expect to shake out integration details.
-- A burner wallet needs testnet SOMI for gas; the faucet mints collateral, not
-  gas. The UI says so.
+- A burner wallet needs testnet STT for gas; the collateral faucet mints tUSDC,
+  not gas. The UI says so.
 - Bets are cached in `localStorage` so a refresh does not lose a session. The
   score is derived, so clearing it loses history, not standing.
+
+## Hackathon resources this was built against
+
+- SDK: [`@somnia-chain/markets-sdk`](https://www.npmjs.com/package/@somnia-chain/markets-sdk)
+  — the same package the official
+  [starter template](https://github.com/IronicDeGawd/ec-dreamdex-hackathon-template) pins
+- [DreamDEX Event Contracts docs](https://docs.dreamdex.io/developers/event-contracts)
+- [DreamDEX Bot Kit](https://github.com/somnia-chain/dreamdex-bot-kit)
+- Shannon testnet, chain `50312`; collateral tUSDC; gas STT
+
+[`FEEDBACK.md`](./FEEDBACK.md) is our SDK and documentation feedback report —
+seven concrete points of friction and four things that worked unusually well.
 
 ## Credits
 
