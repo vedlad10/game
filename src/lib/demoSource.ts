@@ -167,6 +167,10 @@ export class DemoSource implements ArcadeSource {
   }
 
   focus(asset: string): void {
+    // Re-emitting on an unchanged focus would re-enter the store's recompute,
+    // which is what calls focus in the first place — a guaranteed stack
+    // overflow. Only a genuine change is worth a frame.
+    if (asset === this.focused.asset) return;
     this.focused = { asset };
     this.emit();
   }

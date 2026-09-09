@@ -108,6 +108,13 @@ export class ArcadeStore {
   private settling = new Set<string>();
   private priceByAsset = new Map<string, number>();
   private ticksByAsset = new Map<string, PriceTick[]>();
+  /**
+   *  The series key the source is currently focused on. recompute() runs on
+   *  every push and every tick, so re-focusing unconditionally would hammer the
+   *  source — and a source that emits on focus would recurse straight back into
+   *  here. Focus is therefore driven by CHANGE, never by frequency.
+   */
+  private focusedKey: string | null = null;
 
   constructor(
     private source: ArcadeSource,
@@ -163,8 +170,6 @@ export class ArcadeStore {
     const series = this.state.series.find((s) => s.key === key);
     if (!series) return;
     this.set({ activeSeries: key });
-    const live = pickLiveRound(series.markets, this.state.nowSec);
-    this.source.focus(series.asset, live?.poolAddress ?? null);
     this.recompute();
   }
 
@@ -181,10 +186,6 @@ export class ArcadeStore {
     let activeSeries = this.state.activeSeries;
     if (!activeSeries || !series.some((s) => s.key === activeSeries)) {
       activeSeries = series[0]?.key ?? null;
-      if (activeSeries) {
-        const s = series.find((x) => x.key === activeSeries)!;
-        this.source.focus(s.asset, null);
-      }
     }
 
     const active = series.find((s) => s.key === activeSeries) ?? null;
@@ -192,6 +193,15 @@ export class ArcadeStore {
     const live = pickLiveRound(scoped, nowSec);
     const next = pickNextRound(scoped, nowSec);
     const history = pickSettledRounds(scoped, nowSec, 24);
+
+    // Re-point the watches only when the series or its live pool actually
+    // moved — a rolling series mints a new pool every cadence, and that
+    // rollover IS a change worth following.
+    const focusKey = active ? `${active.key}:${live?.poolAddress ?? ""}` : null;
+    if (active && focusKey !== this.focusedKey) {
+      this.focusedKey = focusKey;
+      this.source.focus(active.asset, live?.poolAddress ?? null);
+    }
 
     const asset = active?.asset ?? "";
     const odds = live ? this.source.oddsOf(live, nowSec) : { up: null, down: null };
@@ -310,6 +320,18 @@ export class ArcadeStore {
     } finally {
       this.set({ betting: false });
     }
+  }
+
+  /**
+   *  Record that live mode could not start and the arcade is running on the
+   *  simulation instead. The reason is shown to the player verbatim — a silent
+   *  downgrade to fake data would be the one genuinely dishonest thing this app
+   *  could do.
+   */
+  noticeFallback(reason: string): void {
+    this.set({
+      notice: `Live chain data unavailable (${reason}) — running the built-in simulation.`,
+    });
   }
 
   async faucet(): Promise<void> {
