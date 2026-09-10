@@ -174,13 +174,31 @@ the balance.
 
 ## Status and limits
 
-- The **live path is written against the SDK's documented API and typechecks
-  against its real types**, but it was developed in a sandbox without network
-  access to Somnia, so the live path has not been exercised against a running
-  venue. The simulation path is fully verified end to end. Anyone running this
-  against testnet should expect to shake out integration details.
+- **The live path is verified against Somnia Shannon testnet.** `npm run
+  preflight` passes end to end: 200 markets discovered, eight rolling series,
+  the open round found, live odds off the book, the on-chain price oracle, the
+  round's reference level, and a stake quote — plus a store-level check that
+  the full app data path derives a playable round. Sample run:
+
+  ```
+  status      ready          live round  BTC 1m — 4s left
+  series      8              price       77372.435   (live oracle)
+  active      BTC:60         reference   77425.62
+  odds        UP 0.021       ticks       211
+  quote UP    47.62x         collateral  USDC
+  ```
+
+- The **write path** (place order, redeem) is implemented and typechecked but
+  needs a funded key to exercise; run
+  `SOMNIA_KEY=0x… SOMNIA_BET=1 npm run preflight` to prove it against your own
+  wallet.
+- A one-sided book is normal on a quiet testnet round — the UI disables that
+  side rather than sending an order that cannot cross.
 - A burner wallet needs testnet STT for gas; the collateral faucet mints tUSDC,
   not gas. The UI says so.
+- Shannon runs **both** kinds of event contract: fixed-strike ("at or above
+  77305.31") and reference ("at or above its opening price"). The UI handles
+  both and labels them differently — "target" vs "opened at".
 - Bets are cached in `localStorage` so a refresh does not lose a session. The
   score is derived, so clearing it loses history, not standing.
 

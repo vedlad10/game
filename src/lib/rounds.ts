@@ -18,7 +18,7 @@
 // right now"; `status` is authoritative only for the terminal states
 // (Resolved / Voided), which DO emit events.
 
-import { resolveIntervalSec } from "@somnia-chain/markets-sdk";
+import { resolveIntervalSec, snapIntervalSec } from "@somnia-chain/markets-sdk";
 
 /**
  *  The minimal market shape the round engine needs — a structural subset of the
@@ -41,6 +41,12 @@ export interface RoundSource {
   winningOutcome?: number | null;
   /** "reference" for a true up/down market, "fixed" for a struck threshold. */
   mode?: string;
+  /**
+   *  The threshold a FIXED-mode market resolves against, raw in the oracle's
+   *  price scale. Zero on a reference-mode market, whose threshold is another
+   *  question's answer instead.
+   */
+  strike?: string | number | null;
   quoteDecimals?: number;
 }
 
@@ -128,7 +134,7 @@ export function toRound(m: RoundSource, nowSec: number): Round {
     id: m.id,
     poolAddress: m.poolAddress,
     asset: m.asset,
-    intervalSec: resolveIntervalSec(m) ?? window,
+    intervalSec: seriesIntervalSec(m),
     opensAt,
     expiresAt,
     phase,
@@ -180,8 +186,23 @@ export function pickSettledRounds(markets: RoundSource[], nowSec: number, limit 
  *  table picker offers ("BTC 1m", "ETH 15m").
  */
 export function seriesKey(m: RoundSource): string {
-  const iv = resolveIntervalSec(m) ?? Math.max(1, num(m.expiry) - num(m.tradingStart));
-  return `${m.asset.toUpperCase()}:${iv}`;
+  return `${m.asset.toUpperCase()}:${seriesIntervalSec(m)}`;
+}
+
+/**
+ *  The cadence a series is keyed by — snapped to its natural unit.
+ *
+ *  A real venue does not hand back clean numbers: the same 5m series arrives as
+ *  both 298 and 300 seconds, and the same hourly one as 3599 and 3600, because
+ *  a bootstrap round covers a partial window and the fallback derives the
+ *  cadence from `expiry - tradingStart`. Keying on the raw value splits one
+ *  series into several ghosts, each with its own tab and its own idea of which
+ *  round is live. `snapIntervalSec` is the SDK's own tolerance rule: it pulls
+ *  899/900 and 3599/3600 together while leaving a genuine partial (278s) alone.
+ */
+export function seriesIntervalSec(m: RoundSource): number {
+  const raw = resolveIntervalSec(m) ?? Math.max(1, num(m.expiry) - num(m.tradingStart));
+  return snapIntervalSec(raw);
 }
 
 export interface Series {

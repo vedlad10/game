@@ -247,6 +247,55 @@ describe.skipIf(!LIVE)(`live preflight · ${NETWORK_ID}`, () => {
   );
 });
 
+/**
+ *  The end-to-end check: not "can the source read", but "does the STORE derive a
+ *  round a player could actually bet on". This is the whole app data path minus
+ *  React, so a pass here means the UI has everything it needs to draw.
+ */
+describe.skipIf(!LIVE)(`live store · ${NETWORK_ID}`, () => {
+  it(
+    "derives a complete, playable round from live chain data",
+    async () => {
+      const { ArcadeStore } = await import("./store.ts");
+      const network = NETWORKS[NETWORK_ID];
+      const source = new LiveSource(network, KEY ? { privateKey: KEY } : {});
+      const store = new ArcadeStore(source, `preflight.${NETWORK_ID}`);
+      try {
+        await store.start();
+        // Let discovery, the book watch and the price feed hydrate.
+        await new Promise((r) => setTimeout(r, 12_000));
+
+        const st = store.getState();
+        log(`status        ${st.status}`);
+        log(`series        ${st.series.length}`);
+        log(`active        ${st.activeSeries}`);
+        log(`live round    ${st.live ? `${st.live.asset} ${intervalLabel(st.live.intervalSec)} — ${st.live.secondsLeft}s left` : "NONE"}`);
+        log(`price         ${st.price ?? "—"}`);
+        log(`reference     ${st.openPrice ?? "—"}`);
+        log(`odds          UP ${st.odds.up ?? "—"} / DOWN ${st.odds.down ?? "—"}`);
+        log(`chart ticks   ${st.ticks.length}`);
+        log(`collateral    ${st.collateralSymbol}`);
+
+        const upQuote = store.quote("UP", 1);
+        const downQuote = store.quote("DOWN", 1);
+        log(`quote UP      ${upQuote ? `${upQuote.multiple.toFixed(2)}x` : "none"}`);
+        log(`quote DOWN    ${downQuote ? `${downQuote.multiple.toFixed(2)}x` : "none"}`);
+
+        expect(st.status).toBe("ready");
+        expect(st.series.length).toBeGreaterThan(0);
+        expect(st.live).not.toBeNull();
+        expect(st.price).not.toBeNull();
+        expect(st.ticks.length).toBeGreaterThan(0);
+        // At least one side must be quotable, or there is nothing to play.
+        expect(upQuote !== null || downQuote !== null).toBe(true);
+      } finally {
+        store.stop();
+      }
+    },
+    TIMEOUT,
+  );
+});
+
 /** The live round of whichever series currently has one. */
 function liveRoundOrThrow(markets: RoundSource[], nowSec: number) {
   for (const series of groupIntoSeries(markets)) {

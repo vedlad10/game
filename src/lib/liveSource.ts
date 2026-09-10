@@ -45,6 +45,15 @@ const SLIPPAGE = 0.02;
 /** Ticks kept for the price chart. */
 const TICK_LIMIT = 240;
 
+/**
+ *  Decimals the oracle quotes a market's `strike` in.
+ *
+ *  The SDK does not export this — its own note calls the explorer's value "(2),
+ *  which is empirical, not [guaranteed]". Verified against Shannon: a market
+ *  asking "will BTC/USDC be at or above 77305.31" carries `strike: 7730531`.
+ */
+const ORACLE_PRICE_DECIMALS = 2;
+
 /** UP is the YES outcome (index 0); DOWN is NO (index 1). */
 const OUTCOME_OF: Record<Direction, number> = { UP: 0, DOWN: 1 };
 
@@ -127,6 +136,7 @@ export class LiveSource implements ArcadeSource {
       chain: network.chain,
       wsRpcUrl: network.wsRpcUrl,
       addresses: network.addresses,
+      priceFeed: network.priceFeed,
       ...(signer.privateKey ? { privateKey: signer.privateKey } : {}),
       ...(signer.walletClient ? { walletClient: signer.walletClient as never } : {}),
     });
@@ -194,8 +204,14 @@ export class LiveSource implements ArcadeSource {
   private async discover(): Promise<void> {
     if (this.stopped) return;
     try {
+      // "newest" and NOT "closingSoon": closingSoon sorts by expiry ASCENDING
+      // across every market the venue has ever had, so it returns the oldest
+      // settled rounds first and a limited page of it contains no open round at
+      // all. Verified against Shannon -- closingSoon returned 200 markets that
+      // expired seven weeks ago, all Finalized, zero open; newest returned the
+      // ten rounds actually trading right now.
       const markets = await this.exchange.client.listBinaryMarkets({
-        orderBy: "closingSoon",
+        orderBy: "newest",
         limit: 200,
       });
       for (const m of markets) this.marketsByPool.set(m.poolAddress.toLowerCase(), m);
@@ -296,7 +312,26 @@ export class LiveSource implements ArcadeSource {
     return { up: bestAsk(book.up), down: bestAsk(book.down) };
   }
 
+  /**
+   *  The level a round's outcome is measured against.
+   *
+   *  Two kinds of market wear the same UI, and Shannon runs both:
+   *
+   *  - FIXED  the threshold was struck at creation and IS `strike`. No oracle
+   *           round-trip, available immediately, and it never changes.
+   *  - REFERENCE  the threshold is another question's answer (the opening
+   *           price), so it must be fetched and may not exist yet.
+   *
+   *  Treating every market as reference-mode -- which this did at first --
+   *  leaves every fixed-strike round with no reference line on the chart and a
+   *  permanent "not posted yet", even though the number was known all along.
+   */
   openPriceOf(round: Round): number | null {
+    if (round.source.mode === "fixed") {
+      const raw = Number(round.source.strike ?? 0);
+      return Number.isFinite(raw) && raw > 0 ? raw / 10 ** ORACLE_PRICE_DECIMALS : null;
+    }
+
     const cached = this.openPrices.get(round.id);
     if (cached !== undefined) return cached;
 

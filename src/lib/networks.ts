@@ -10,6 +10,8 @@
 import {
   SOMNIA_MAINNET_ADDRESSES,
   SOMNIA_TESTNET_ADDRESSES,
+  SOMNIA_TESTNET_PRICE_FEED,
+  type PriceFeedConfig,
   type SomniaMarketsAddresses,
 } from "@somnia-chain/markets-sdk";
 import { somniaMainnet, somniaShannon } from "@somnia-chain/markets-sdk/chains";
@@ -27,6 +29,12 @@ export interface NetworkConfig {
   /** WebSocket RPC the live tail materializes blocks from. */
   wsRpcUrl: string;
   addresses: SomniaMarketsAddresses;
+  /**
+   *  The price oracle is a SEPARATE GraphQL endpoint from the market indexer,
+   *  and the SDK returns no price at all unless it is configured — the chart
+   *  and the round's reference level both come from here.
+   */
+  priceFeed: PriceFeedConfig;
   /** Block explorer root, for linking a fill to its transaction. */
   explorerUrl: string;
   /**
@@ -45,6 +53,7 @@ export const NETWORKS: Record<NetworkId, NetworkConfig> = {
     indexerUrl: "https://dev.smk.somnia.host/v1/graphql",
     wsRpcUrl: "wss://api.infra.testnet.somnia.network/ws",
     addresses: SOMNIA_TESTNET_ADDRESSES,
+    priceFeed: SOMNIA_TESTNET_PRICE_FEED,
     explorerUrl: "https://shannon-explorer.somnia.network",
     hasFaucet: true,
   },
@@ -55,6 +64,10 @@ export const NETWORKS: Record<NetworkId, NetworkConfig> = {
     indexerUrl: "https://prd.smk.somnia.host/v1/graphql",
     wsRpcUrl: "wss://api.infra.mainnet.somnia.network/ws",
     addresses: SOMNIA_MAINNET_ADDRESSES,
+    // The SDK exports a constant for testnet only. This is the production
+    // sibling of that host, reachable and answering GraphQL; if the price strip
+    // is ever empty on mainnet this is the first line to check.
+    priceFeed: { url: "https://price-feed.prd.oracle.somnia.host/v1/graphql", quote: "USDC" },
     explorerUrl: "https://explorer.somnia.network",
     hasFaucet: false,
   },

@@ -34,6 +34,9 @@ export function RoundCard({ state, stake, onStake, onBet, quote }: Props) {
   if (!live) return <WaitingCard state={state} />;
 
   const urgent = live.secondsLeft <= URGENT_SEC;
+  // A fixed-strike round is measured against a level struck at creation; a
+  // reference round against its own opening price. Same UI, different noun.
+  const fixedStrike = live.source.mode === "fixed";
   const winning = openPrice != null && price != null ? price >= openPrice : null;
 
   return (
@@ -67,10 +70,14 @@ export function RoundCard({ state, stake, onStake, onBet, quote }: Props) {
           {formatDelta(openPrice, price)}
         </span>
         {openPrice == null ? (
-          <span className="ref">opening level not posted by the oracle yet</span>
+          <span className="ref">
+            {fixedStrike
+              ? "no threshold on this round"
+              : "opening level not posted by the oracle yet"}
+          </span>
         ) : (
           <span className="ref">
-            opened at <b>{formatPrice(openPrice)}</b>
+            {fixedStrike ? "target" : "opened at"} <b>{formatPrice(openPrice)}</b>
           </span>
         )}
       </div>

@@ -78,7 +78,7 @@ one real order and prove the write path. Fix whatever it flags **before** record
 | Criterion | Weight | Where it lands |
 |---|---|---|
 | Innovation & Originality | 20% | An arcade surface for Event Contracts rather than another analytics dashboard; scoring weighted by entry probability rather than volume |
-| Technical Implementation | 25% | Same SDK the official template pins, on the same chain; live book, oracle price, opening-price reference, IOC orders, automatic redeem. **Weak spot: the live path has not been run against a live venue** |
+| Technical Implementation | 25% | Same SDK the official template pins, on the same chain. **Read path verified end to end against Shannon** — see the preflight output in the README. Handles both fixed-strike and reference-mode contracts. Write path implemented; run the gated preflight step with a funded key to demo it |
 | User Experience & Design | 20% | One tap to trade, countdown-first layout, chart coloured against the level that decides the round, burner wallet for zero-setup entry, mobile clean |
 | Business & Ecosystem Impact | 20% | Directly targets the adoption gap: turns a probability-pricing task into a direction-picking one, which is the argument for new users and new trading activity |
 | Presentation & Demo | 15% | Script above; lead with the adoption problem, not the stack |
@@ -105,6 +105,7 @@ Point at:
 - The simulation is a labelled fallback, never the default when the chain is
   reachable
 
-Be straight about the limit: the live path is written against the SDK's real
-types and typechecks, but it was built without network access to Somnia, so it
-has not been run against a live venue. Say so before they find it.
+Be straight about the remaining limit: the read path is verified against Shannon
+(show them `npm run preflight`), and the write path is implemented but needs a
+funded wallet to demonstrate. Run the gated bet step once before recording so
+you can say it placed a real order, with the tx hash to prove it.

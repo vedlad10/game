@@ -161,6 +161,27 @@ describe("series grouping", () => {
     expect(seriesKey(market({ asset: "eth", intervalSec: 900 }))).toBe("ETH:900");
   });
 
+  it("snaps jittered cadences onto one key", () => {
+    // Shannon really does return 298 and 300 for the same 5m series, and
+    // 3599 alongside 3600 -- a bootstrap round covers a partial window. Keying
+    // on the raw value split one series into several ghost tabs.
+    expect(seriesKey(market({ intervalSec: 298 }))).toBe(seriesKey(market({ intervalSec: 300 })));
+    expect(seriesKey(market({ intervalSec: 3599 }))).toBe(seriesKey(market({ intervalSec: 3600 })));
+    expect(seriesKey(market({ intervalSec: 899 }))).toBe(seriesKey(market({ intervalSec: 900 })));
+  });
+
+  it("leaves a genuine partial window on its own key", () => {
+    // 278s is not jitter around 300 -- it is a real short window and must not
+    // be swallowed into the 5m series.
+    expect(seriesKey(market({ intervalSec: 278 }))).not.toBe(seriesKey(market({ intervalSec: 300 })));
+  });
+
+  it("labels a snapped cadence consistently", () => {
+    // Unsnapped, 3599 rendered as "60m" next to 3600 as "1h" in the same strip.
+    expect(intervalLabel(toRound(market({ intervalSec: 3599 }), T0).intervalSec)).toBe("1h");
+    expect(intervalLabel(toRound(market({ intervalSec: 3600 }), T0).intervalSec)).toBe("1h");
+  });
+
   it("groups markets and sorts the twitchiest cadence first", () => {
     const groups = groupIntoSeries([
       market({ id: "a", asset: "BTC", intervalSec: 900 }),
@@ -187,6 +208,20 @@ describe("labels", () => {
     expect(formatCountdown(75)).toBe("01:15");
     expect(formatCountdown(3_725)).toBe("1:02:05");
     expect(formatCountdown(-5)).toBe("00:00");
+  });
+});
+
+describe("fixed-strike markets", () => {
+  it("carries the strike through to the round", () => {
+    // Shannon runs both kinds; a fixed round's threshold is known at creation.
+    const r = toRound(market({ mode: "fixed", strike: "7730531" }), T0);
+    expect(r.source.mode).toBe("fixed");
+    expect(r.source.strike).toBe("7730531");
+  });
+
+  it("keeps reference-mode rounds unstruck", () => {
+    const r = toRound(market({ mode: "reference", strike: "0" }), T0);
+    expect(Number(r.source.strike)).toBe(0);
   });
 });
 
