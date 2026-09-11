@@ -41,8 +41,17 @@ import type {
 const DISCOVERY_MS = 12_000;
 /** Depth pulled from the book for odds and stake quoting. */
 const BOOK_DEPTH = 25;
-/** Slippage bound handed to a market order, as a fraction. */
-const SLIPPAGE = 0.02;
+/**
+ *  Slippage bound handed to a market order, as a fraction.
+ *
+ *  Two percent is too tight for a one-minute book: the crossing limit is
+ *  computed from the best opposite level at quote time, and on a round with
+ *  seconds left that level can move before the transaction lands, so the IOC
+ *  crosses nothing and reverts with ImmediateOrCancelNoFill. Observed live on
+ *  Shannon. Five percent still bounds the worst fill tightly -- the quote shown
+ *  to the player is the book walk, not this -- while surviving normal churn.
+ */
+const SLIPPAGE = 0.05;
 /** Ticks kept for the price chart. */
 const TICK_LIMIT = 240;
 /** How often the focused pool's book is re-read over plain RPC. */
@@ -456,17 +465,23 @@ export class LiveSource implements ArcadeSource {
     if (!quote) throw new Error("the book is too thin to fill that stake");
 
     const symbol = this.symbolFor(round, direction);
-    const order = await this.exchange.createOrder(
-      symbol,
-      "market",
-      "buy",
-      quote.shares,
-      undefined,
-      { timeInForce: "IOC", slippage: SLIPPAGE },
-    );
+    let order;
+    try {
+      order = await this.exchange.createOrder(symbol, "market", "buy", quote.shares, undefined, {
+        timeInForce: "IOC",
+        slippage: SLIPPAGE,
+      });
+    } catch (err) {
+      // A no-fill IOC is the book moving, not a broken app. Say that, rather
+      // than surfacing "placeBinaryOrder reverted: ImmediateOrCancelNoFill()".
+      if (/ImmediateOrCancelNoFill/i.test(describe(err))) {
+        throw new Error("The book moved before your order landed and nothing filled. Try again.");
+      }
+      throw err;
+    }
 
     if (order.filled <= 0) {
-      throw new Error("the order crossed nothing — the book moved before it landed");
+      throw new Error("The book moved before your order landed and nothing filled. Try again.");
     }
 
     const market = this.marketsByPool.get(round.poolAddress.toLowerCase());
