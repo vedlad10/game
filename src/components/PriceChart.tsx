@@ -107,7 +107,7 @@ export function PriceChart({ ticks, reference, opensAt, height = 178 }: Props) {
   );
 }
 
-interface View {
+export interface View {
   path: string;
   area: string;
   refY: number | null;
@@ -121,8 +121,15 @@ interface View {
  *  reference level — a chart whose window excludes the line the outcome is
  *  measured against would hide the only thing that matters.
  */
-function build(ticks: PriceTick[], reference: number | null, height: number): View | null {
-  const points = ticks.filter((t) => Number.isFinite(t.price) && t.price > 0);
+export function build(ticks: PriceTick[], reference: number | null, height: number): View | null {
+  // Sort ASCENDING before projecting. The on-chain price feed hands back its
+  // tape newest-first, and projecting that directly makes `span` negative --
+  // clamped to 1, which multiplies every offset into the thousands and throws
+  // the whole line off-canvas. The chart rendered as an empty box with a stub
+  // at the left edge. Never assume a feed's ordering; impose it.
+  const points = ticks
+    .filter((t) => Number.isFinite(t.price) && t.price > 0 && Number.isFinite(t.t))
+    .sort((a, b) => a.t - b.t);
   if (points.length < 2) return null;
 
   const prices = points.map((p) => p.price);
@@ -168,8 +175,13 @@ function build(ticks: PriceTick[], reference: number | null, height: number): Vi
 /** Where a wall-clock instant falls on the x axis, or null if off-chart. */
 function xForTime(ticks: PriceTick[], atMs: number): number | null {
   if (ticks.length < 2) return null;
-  const t0 = ticks[0]!.t;
-  const t1 = ticks[ticks.length - 1]!.t;
+  // Same ordering hazard as build(): bound the axis by extremes, not by ends.
+  let t0 = Infinity;
+  let t1 = -Infinity;
+  for (const tick of ticks) {
+    if (tick.t < t0) t0 = tick.t;
+    if (tick.t > t1) t1 = tick.t;
+  }
   if (atMs <= t0 || atMs >= t1) return null;
   const span = Math.max(1, t1 - t0);
   return PAD_L + ((atMs - t0) / span) * (VIEW_W - PAD_L - PAD_R);

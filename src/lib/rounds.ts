@@ -212,6 +212,14 @@ export interface Series {
   markets: RoundSource[];
 }
 
+/** Display order for assets; everything unlisted sorts after them. */
+const ASSET_ORDER = ["BTC", "ETH"];
+
+function assetRank(asset: string): number {
+  const i = ASSET_ORDER.indexOf(asset.toUpperCase());
+  return i === -1 ? ASSET_ORDER.length : i;
+}
+
 export function groupIntoSeries(markets: RoundSource[]): Series[] {
   const byKey = new Map<string, Series>();
   for (const m of markets) {
@@ -224,9 +232,15 @@ export function groupIntoSeries(markets: RoundSource[]): Series[] {
     }
     s.markets.push(m);
   }
-  // Fastest cadence first — the arcade wants the twitchiest table on top.
+  // Headline assets first, then fastest cadence -- the arcade wants BTC 1m on
+  // top, not a GENESIS-07 test series that happens to roll every 14 minutes.
+  // Anything unranked keeps its place behind them rather than being hidden:
+  // these are real markets on the venue and a player may well want them.
   return [...byKey.values()].sort(
-    (a, b) => a.intervalSec - b.intervalSec || a.asset.localeCompare(b.asset),
+    (a, b) =>
+      assetRank(a.asset) - assetRank(b.asset) ||
+      a.intervalSec - b.intervalSec ||
+      a.asset.localeCompare(b.asset),
   );
 }
 

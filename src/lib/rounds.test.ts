@@ -192,6 +192,22 @@ describe("series grouping", () => {
     expect(groups.map((g) => g.key)).toEqual(["BTC:60", "ETH:60", "BTC:900"]);
     expect(groups[0]!.markets).toHaveLength(2);
   });
+
+  it("ranks headline assets ahead of the venue's test series", () => {
+    // Shannon carries GENESIS-* test markets on odd cadences; they were
+    // crowding BTC and ETH out of the visible tab strip.
+    const groups = groupIntoSeries([
+      market({ id: "g", asset: "GENESIS-01", intervalSec: 840 }),
+      market({ id: "e", asset: "ETH", intervalSec: 900 }),
+      market({ id: "b", asset: "BTC", intervalSec: 900 }),
+    ]);
+    expect(groups.map((g) => g.asset)).toEqual(["BTC", "ETH", "GENESIS-01"]);
+  });
+
+  it("keeps unranked assets rather than hiding them", () => {
+    const groups = groupIntoSeries([market({ asset: "GENESIS-07", intervalSec: 840 })]);
+    expect(groups).toHaveLength(1);
+  });
 });
 
 describe("labels", () => {
