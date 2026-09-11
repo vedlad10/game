@@ -56,6 +56,7 @@ function initialState(source: ArcadeSource): ArcadeState {
     bets: [],
     score: EMPTY_SCORE,
     balance: null,
+    gas: null,
     collateralSymbol: source.collateralSymbol,
     account: null,
     betting: false,
@@ -152,6 +153,7 @@ export class ArcadeStore {
         this.recompute();
       },
       balance: (balance) => this.set({ balance }),
+      gas: (gas) => this.set({ gas }),
       account: (account) => this.set({ account }),
       status: (status: ConnectionStatus, notice = null) => this.set({ status, notice }),
     });

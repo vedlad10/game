@@ -35,6 +35,10 @@ export interface NetworkConfig {
    *  and the round's reference level both come from here.
    */
   priceFeed: PriceFeedConfig;
+  /** Native token that pays for gas — STT on Shannon, SOMI on mainnet. */
+  gasSymbol: string;
+  /** Where a user goes to get gas. */
+  gasFaucetUrl: string | null;
   /** Block explorer root, for linking a fill to its transaction. */
   explorerUrl: string;
   /**
@@ -54,6 +58,8 @@ export const NETWORKS: Record<NetworkId, NetworkConfig> = {
     wsRpcUrl: "wss://api.infra.testnet.somnia.network/ws",
     addresses: SOMNIA_TESTNET_ADDRESSES,
     priceFeed: SOMNIA_TESTNET_PRICE_FEED,
+    gasSymbol: "STT",
+    gasFaucetUrl: "https://testnet.somnia.network/",
     explorerUrl: "https://shannon-explorer.somnia.network",
     hasFaucet: true,
   },
@@ -68,6 +74,8 @@ export const NETWORKS: Record<NetworkId, NetworkConfig> = {
     // sibling of that host, reachable and answering GraphQL; if the price strip
     // is ever empty on mainnet this is the first line to check.
     priceFeed: { url: "https://price-feed.prd.oracle.somnia.host/v1/graphql", quote: "USDC" },
+    gasSymbol: "SOMI",
+    gasFaucetUrl: null,
     explorerUrl: "https://explorer.somnia.network",
     hasFaucet: false,
   },

@@ -52,6 +52,7 @@ describe.skipIf(!LIVE)(`live preflight · ${NETWORK_ID}`, () => {
   let price: number | null = null;
   let ticks: PriceTick[] = [];
   let balance: number | null = null;
+  let gasBalance: number | null = null;
   let account: string | null = null;
   let statusNotice: string | null = null;
 
@@ -67,6 +68,9 @@ describe.skipIf(!LIVE)(`live preflight · ${NETWORK_ID}`, () => {
     },
     balance: (b) => {
       balance = b;
+    },
+    gas: (g) => {
+      gasBalance = g;
     },
     account: (a) => {
       account = a;
@@ -203,6 +207,10 @@ describe.skipIf(!LIVE)(`live preflight · ${NETWORK_ID}`, () => {
       await new Promise((r) => setTimeout(r, 3_000));
       log(`account ${account ?? "—"}`);
       log(`balance ${balance ?? "—"} ${source.collateralSymbol}`);
+      log(`gas     ${gasBalance ?? "—"} STT`);
+      if (gasBalance === 0) {
+        log("NO GAS. Every write will revert; fund this address before betting.");
+      }
       expect(account).not.toBeNull();
       if (balance === 0) {
         log("Zero collateral. Run the faucet step, or mint from the UI.");

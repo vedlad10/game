@@ -197,6 +197,9 @@ export class DemoSource implements ArcadeSource {
     }
     push.ticks(asset, ticks);
     push.balance(this.balance);
+    // Simulated play needs no gas; report a nominal amount so the low-gas
+    // warning never fires in a mode that cannot spend any.
+    push.gas(1);
   }
 
   /**

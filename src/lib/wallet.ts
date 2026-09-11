@@ -20,7 +20,7 @@ import type { NetworkConfig } from "./networks.ts";
 
 const BURNER_KEY = "streak.burner.v1";
 
-export type WalletKind = "burner" | "injected";
+export type WalletKind = "burner" | "injected" | "imported";
 
 export interface WalletConnection {
   kind: WalletKind;
@@ -87,6 +87,28 @@ export function clearBurner(): void {
   } catch {
     /* nothing to clear */
   }
+}
+
+/**
+ *  Connect a key the user pasted in.
+ *
+ *  The burner is the zero-setup path, but it starts with no gas and the public
+ *  faucet is captcha-gated, so there is no way to fund it from inside the app.
+ *  Importing an already-funded key is the one route that lets someone play
+ *  immediately, which matters most for a judge with thirty seconds of patience.
+ *  The key is held in memory for the session only -- never written to storage.
+ */
+export function connectImported(privateKey: string): WalletConnection {
+  const trimmed = privateKey.trim();
+  const prefixed = (trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`) as `0x${string}`;
+  if (!isHexKey(prefixed)) {
+    throw new Error("that is not a private key — expected 64 hex characters");
+  }
+  return {
+    kind: "imported",
+    address: privateKeyToAccount(prefixed).address,
+    privateKey: prefixed,
+  };
 }
 
 export function connectBurner(): WalletConnection {

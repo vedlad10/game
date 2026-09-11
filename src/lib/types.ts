@@ -92,6 +92,15 @@ export interface ArcadeState {
 
   /** Collateral balance, human units. Null when no wallet is connected. */
   balance: number | null;
+  /**
+   *  Native gas balance (STT on Shannon), human units. Null when unknown.
+   *
+   *  This is surfaced because it is the single most common reason a bet fails:
+   *  with no gas every write reverts, and the node reports it as "Missing or
+   *  invalid parameters", which reads like a bug in the app rather than an
+   *  empty wallet.
+   */
+  gas: number | null;
   /** Ticker of the venue's collateral, e.g. "USDC". */
   collateralSymbol: string;
   /** Connected account, or null. */
@@ -131,6 +140,7 @@ export interface SourcePush {
   price(asset: string, price: number, atMs: number): void;
   ticks(asset: string, ticks: PriceTick[]): void;
   balance(balance: number | null): void;
+  gas(gas: number | null): void;
   account(account: string | null): void;
   status(status: ConnectionStatus, notice?: string | null): void;
 }

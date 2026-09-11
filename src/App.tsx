@@ -4,7 +4,7 @@
 // wires them to the panels and holds the handful of things that are genuinely
 // view state (which stake preset is selected, which network, the error toast).
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useArcade, type ModePreference } from "./hooks/useArcade.ts";
 import { RoundCard } from "./components/RoundCard.tsx";
 import { ScorePanel } from "./components/ScorePanel.tsx";
@@ -12,7 +12,13 @@ import { BetList } from "./components/BetList.tsx";
 import { HistoryStrip } from "./components/HistoryStrip.tsx";
 import { WalletPanel } from "./components/WalletPanel.tsx";
 import { DEFAULT_NETWORK, NETWORKS, isNetworkId, type NetworkId } from "./lib/networks.ts";
-import { connectBurner, connectInjected, clearBurner, type WalletConnection } from "./lib/wallet.ts";
+import {
+  clearBurner,
+  connectBurner,
+  connectImported,
+  connectInjected,
+  type WalletConnection,
+} from "./lib/wallet.ts";
 import { intervalLabel, type Direction } from "./lib/rounds.ts";
 
 /** Read the initial network from the URL so a demo link can pin one. */
@@ -38,12 +44,9 @@ export default function App() {
   const arcade = useArcade({ network, connection, preference });
   const { state } = arcade;
 
-  // A rejected order must be visible. Auto-dismiss so it does not pile up.
-  useEffect(() => {
-    if (!error) return;
-    const t = setTimeout(() => setError(null), 7000);
-    return () => clearTimeout(t);
-  }, [error]);
+  // A failed order used to auto-dismiss after seven seconds. That hid the one
+  // message that explains why nothing works -- an empty gas balance -- so the
+  // app looked broken rather than unfunded. Errors now stay until dismissed.
 
   const onBet = useCallback(
     (direction: Direction) => {
@@ -148,6 +151,15 @@ export default function App() {
             demo={demo}
             canFaucet={arcade.canFaucet}
             onConnectBurner={() => setConnection(connectBurner())}
+            onImportKey={(key) => {
+              try {
+                setConnection(connectImported(key));
+                setError(null);
+              } catch (err) {
+                setError(err instanceof Error ? err.message : String(err));
+              }
+            }}
+            gas={state.gas}
             onConnectInjected={onConnectInjected}
             onDisconnect={() => {
               onDisconnect();
@@ -185,7 +197,14 @@ export default function App() {
         </span>
       </footer>
 
-      {error && <div className="toast">{error}</div>}
+      {error && (
+        <div className="toast" role="alert">
+          <span>{error}</span>
+          <button type="button" className="toast-close" onClick={() => setError(null)}>
+            dismiss
+          </button>
+        </div>
+      )}
     </div>
   );
 }

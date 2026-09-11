@@ -158,6 +158,7 @@ function bootingState(preference: ModePreference): ArcadeState {
       pnl: 0,
     },
     balance: null,
+    gas: null,
     collateralSymbol: "USDC",
     account: null,
     betting: false,

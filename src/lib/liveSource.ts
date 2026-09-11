@@ -25,6 +25,7 @@ import {
   type BinaryMarket,
   type UnifiedMarket,
 } from "@somnia-chain/markets-sdk";
+import { createPublicClient, formatEther, http, type PublicClient } from "viem";
 import type { Direction, Round } from "./rounds.ts";
 import type { NetworkConfig } from "./networks.ts";
 import type {
@@ -125,12 +126,20 @@ export class LiveSource implements ArcadeSource {
   private unifiedByPool = new Map<string, UnifiedMarket>();
 
   private collateral = "USDC";
+  /** Read-only client for the one thing the SDK does not surface: native gas. */
+  private publicClient: PublicClient;
+  /** Latest native balance in whole STT, or null before the first read. */
+  private gasBalance: number | null = null;
 
   constructor(
     private network: NetworkConfig,
     /** Signer, if the player has connected one. Reads work without it. */
     private signer: { privateKey?: `0x${string}`; walletClient?: unknown } = {},
   ) {
+    this.publicClient = createPublicClient({
+      chain: network.chain,
+      transport: http(),
+    }) as PublicClient;
     this.exchange = new SomniaMarkets({
       indexerUrl: network.indexerUrl,
       chain: network.chain,
@@ -389,6 +398,7 @@ export class LiveSource implements ArcadeSource {
    *  true average entry, which is what the score is computed from.
    */
   async placeBet(round: Round, direction: Direction, stake: number): Promise<BetResult> {
+    await this.assertCanTransact();
     const quote = this.quote(round, direction, stake);
     if (!quote) throw new Error("the book is too thin to fill that stake");
 
@@ -435,8 +445,50 @@ export class LiveSource implements ArcadeSource {
 
   async faucet(): Promise<void> {
     if (!this.network.hasFaucet) throw new Error("no faucet on mainnet");
+    // The collateral faucet is itself a transaction, so it needs gas too --
+    // which is the trap: a brand-new wallet cannot even mint its own play
+    // money. Say so instead of letting it revert.
+    await this.assertCanTransact();
     await this.exchange.trader.faucet();
     await this.refreshAccount();
+  }
+
+  /**
+   *  Refuse to send a transaction from a wallet that cannot pay for it.
+   *
+   *  Without this the node rejects the send and the SDK surfaces "Missing or
+   *  invalid parameters", which sounds like the app built a bad transaction.
+   *  The real cause is almost always an empty gas balance, and the user can fix
+   *  that in thirty seconds if -- and only if -- someone tells them.
+   */
+  private async assertCanTransact(): Promise<void> {
+    const gas = await this.refreshGas();
+    if (gas !== null && gas <= 0) {
+      throw new Error(
+        `This wallet has no ${this.network.gasSymbol} for gas, so the transaction cannot be sent. ` +
+          `Fund ${this.exchange.walletAddress ?? "it"} from the Somnia faucet, then try again.`,
+      );
+    }
+  }
+
+  /** Read the native gas balance and push it to the store. */
+  private async refreshGas(): Promise<number | null> {
+    const address = this.exchange.walletAddress;
+    if (!address) {
+      this.gasBalance = null;
+      this.push?.gas(null);
+      return null;
+    }
+    try {
+      const wei = await this.publicClient.getBalance({ address });
+      this.gasBalance = Number(formatEther(wei));
+    } catch {
+      // A failed balance read must not block a write -- the chain is the
+      // authority, and a false "no gas" would be worse than no warning.
+      this.gasBalance = null;
+    }
+    this.push?.gas(this.gasBalance);
+    return this.gasBalance;
   }
 
   /** Refresh the connected account and its collateral balance. */
@@ -445,6 +497,7 @@ export class LiveSource implements ArcadeSource {
     if (!this.signer.privateKey && !this.signer.walletClient) {
       this.push.account(null);
       this.push.balance(null);
+      this.push.gas(null);
       return;
     }
     try {
@@ -455,6 +508,7 @@ export class LiveSource implements ArcadeSource {
       const code = balances[this.collateral] ? this.collateral : (Object.keys(balances)[0] ?? this.collateral);
       this.collateral = code;
       this.push.balance(balances[code]?.free ?? 0);
+      await this.refreshGas();
     } catch (err) {
       this.push.balance(null);
       this.push.status("ready", describe(err));

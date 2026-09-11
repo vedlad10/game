@@ -14,10 +14,13 @@ interface Props {
   network: NetworkConfig;
   connection: WalletConnection | null;
   balance: number | null;
+  /** Native gas balance. Zero here is why every write fails. */
+  gas: number | null;
   symbol: string;
   demo: boolean;
   canFaucet: boolean;
   onConnectBurner(): void;
+  onImportKey(privateKey: string): void;
   onConnectInjected(): void;
   onDisconnect(): void;
   onFaucet(): Promise<void>;
@@ -27,15 +30,22 @@ export function WalletPanel({
   network,
   connection,
   balance,
+  gas,
   symbol,
   demo,
   canFaucet,
   onConnectBurner,
+  onImportKey,
   onConnectInjected,
   onDisconnect,
   onFaucet,
 }: Props) {
   const [busy, setBusy] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [keyInput, setKeyInput] = useState("");
+  // Only a live wallet that has actually been read can be known to be empty;
+  // null means "not read yet" and must not raise a false alarm.
+  const outOfGas = !demo && connection !== null && gas !== null && gas <= 0;
 
   async function faucet() {
     setBusy(true);
@@ -86,9 +96,37 @@ export function WalletPanel({
               {connection.kind === "burner" && " · burner"}
             </div>
 
+            <div className="gas-line">
+              <span>gas</span>
+              <b className="num">{gas == null ? "—" : gas.toFixed(4)}</b>
+              <span>{network.gasSymbol}</span>
+            </div>
+
+            {outOfGas && (
+              <div className="gas-warn">
+                <b>This wallet has no {network.gasSymbol}.</b> Every transaction — including
+                minting collateral — needs gas, so nothing will send until you fund it.
+                {network.gasFaucetUrl && (
+                  <>
+                    {" "}
+                    <a href={network.gasFaucetUrl} target="_blank" rel="noreferrer">
+                      Get {network.gasSymbol} from the Somnia faucet
+                    </a>
+                    , paste the address above, then come back.
+                  </>
+                )}
+              </div>
+            )}
+
             {canFaucet && (
               <div className="btn-row">
-                <button type="button" className="btn primary" onClick={faucet} disabled={busy}>
+                <button
+                  type="button"
+                  className="btn primary"
+                  onClick={faucet}
+                  disabled={busy || outOfGas}
+                  title={outOfGas ? `Needs ${network.gasSymbol} for gas first` : undefined}
+                >
                   {busy ? "Minting…" : `Mint test ${symbol}`}
                 </button>
               </div>
@@ -125,10 +163,53 @@ export function WalletPanel({
                 Connect wallet
               </button>
             </div>
-            <p className="note">
-              The burner is a throwaway key generated in this browser and kept in local storage.
-              It is for testnet play — never send it anything you care about.
-            </p>
+            {importing ? (
+              <>
+                <input
+                  className="key-input"
+                  type="password"
+                  placeholder="0x… private key of a funded testnet wallet"
+                  value={keyInput}
+                  onChange={(e) => setKeyInput(e.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <div className="btn-row">
+                  <button
+                    type="button"
+                    className="btn primary"
+                    onClick={() => {
+                      onImportKey(keyInput);
+                      setKeyInput("");
+                    }}
+                    disabled={keyInput.trim().length === 0}
+                  >
+                    Use this key
+                  </button>
+                  <button type="button" className="btn" onClick={() => setImporting(false)}>
+                    Cancel
+                  </button>
+                </div>
+                <p className="note">
+                  Held in memory for this session only — never written to storage and never sent
+                  anywhere. Use a testnet key, never one that holds real value.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="btn-row">
+                  <button type="button" className="btn" onClick={() => setImporting(true)}>
+                    Import a funded key
+                  </button>
+                </div>
+                <p className="note">
+                  The burner is a throwaway key generated in this browser and kept in local
+                  storage. It starts with no {network.gasSymbol}, so you will need to fund it from
+                  the faucet before it can trade — importing an already-funded testnet key is the
+                  fastest way to play right now.
+                </p>
+              </>
+            )}
           </>
         )}
       </div>
