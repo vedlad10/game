@@ -1,0 +1,62 @@
+# Build the arcade and publish it to GitHub Pages.
+#
+# This replaces the two starter workflows that shipped with the repo (a static
+# upload and a Jekyll build). Both targeted Pages on every push to main, so they
+# raced each other for the same deployment; STREAK also needs a real build step,
+# which neither of them did.
+name: Deploy STREAK to Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel a deployment mid-flight; just queue behind it.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        # Pages serves a project site from /<repo>/, which is what vite.config
+        # defaults to. A custom domain would set BASE_PATH: "/".
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
