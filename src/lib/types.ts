@@ -141,6 +141,12 @@ export interface SourcePush {
   ticks(asset: string, ticks: PriceTick[]): void;
   balance(balance: number | null): void;
   gas(gas: number | null): void;
+  /**
+   *  The venue's collateral ticker, once the balance sheet reveals its actual
+   *  spelling. Pushed rather than read once at construction, because the store
+   *  is built before any wallet call has happened.
+   */
+  collateral(symbol: string): void;
   account(account: string | null): void;
   status(status: ConnectionStatus, notice?: string | null): void;
 }

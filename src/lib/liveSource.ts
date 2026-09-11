@@ -45,6 +45,8 @@ const BOOK_DEPTH = 25;
 const SLIPPAGE = 0.02;
 /** Ticks kept for the price chart. */
 const TICK_LIMIT = 240;
+/** How often the focused pool's book is re-read over plain RPC. */
+const BOOK_POLL_MS = 4_000;
 
 /**
  *  Decimals the oracle quotes a market's `strike` in.
@@ -120,6 +122,18 @@ export class LiveSource implements ArcadeSource {
   /** poolAddress -> the indexed market row, for decimals. */
   private marketsByPool = new Map<string, BinaryMarket>();
   /**
+   *  poolAddress -> the last book fetched over plain RPC.
+   *
+   *  The live book is materialized from the websocket tail, which is the fast
+   *  path but not a guaranteed one: on a slow or dropped socket it stays empty
+   *  indefinitely, and an empty book means no odds, no quotes, and two dead
+   *  buttons. Measured on Shannon during a degraded run -- every round had
+   *  three to four levels a side, yet the live book reported nothing. This
+   *  one-shot read is the floor under that.
+   */
+  private snapshotBooks = new Map<string, { up: [number, number][]; down: [number, number][] }>();
+  private bookTimer: ReturnType<typeof setInterval> | null = null;
+  /**
    *  poolAddress -> the unified market, which carries the per-outcome tradable
    *  symbols createOrder takes and the venue's collateral code.
    */
@@ -183,6 +197,7 @@ export class LiveSource implements ArcadeSource {
 
     await this.discover();
     this.discoveryTimer = setInterval(() => void this.discover(), DISCOVERY_MS);
+    this.bookTimer = setInterval(() => void this.refreshSnapshotBook(), BOOK_POLL_MS);
     await this.refreshAccount();
 
     push.status("ready");
@@ -201,6 +216,8 @@ export class LiveSource implements ArcadeSource {
     this.stopped = true;
     if (this.discoveryTimer) clearInterval(this.discoveryTimer);
     this.discoveryTimer = null;
+    if (this.bookTimer) clearInterval(this.bookTimer);
+    this.bookTimer = null;
     this.unsubLive?.();
     this.unsubPrices?.();
     this.marketWatch?.stop();
@@ -265,6 +282,9 @@ export class LiveSource implements ArcadeSource {
       this.focusedPool = poolAddress;
       this.marketWatch?.stop();
       this.marketWatch = null;
+      // Fetch the book over RPC immediately so the round is playable on the
+      // first frame, rather than only once the socket has hydrated.
+      void this.refreshSnapshotBook();
       void this.exchange.client
         .watchMarket(poolAddress)
         .then((h) => {
@@ -273,7 +293,7 @@ export class LiveSource implements ArcadeSource {
           this.emitBook();
         })
         .catch(() => {
-          /* odds fall back to null and the buttons disable themselves */
+          /* the RPC snapshot carries the odds on its own */
         });
     }
   }
@@ -297,21 +317,54 @@ export class LiveSource implements ArcadeSource {
     }
   }
 
-  /** Read the live four-sided book for a round, or null when unavailable. */
-  private bookFor(round: Round): { up: [number, number][]; down: [number, number][] } | null {
+  /** Collateral units per whole outcome share for a pool. */
+  private oneShareOf(poolAddress: string): number {
+    return 10 ** (this.marketsByPool.get(poolAddress.toLowerCase())?.quoteDecimals ?? 6);
+  }
+
+  /**
+   *  Re-read the focused pool's book over plain RPC and cache it. Runs on a
+   *  timer and on focus, so the odds survive a socket that never hydrates.
+   */
+  private async refreshSnapshotBook(): Promise<void> {
+    const pool = this.focusedPool;
+    if (!pool || this.stopped) return;
     try {
-      const market = this.marketsByPool.get(round.poolAddress.toLowerCase());
-      const decimals = market?.quoteDecimals ?? 6;
-      const one = 10 ** decimals;
+      const book = await this.exchange.client.getBinaryOrderBook(pool as `0x${string}`, {
+        depth: BOOK_DEPTH,
+      });
+      const one = this.oneShareOf(pool);
+      const toHuman = (levels: { price: bigint; quantity: bigint }[]): [number, number][] =>
+        levels.map((l) => [Number(l.price) / one, Number(l.quantity) / one]);
+      this.snapshotBooks.set(pool.toLowerCase(), {
+        up: toHuman(book.yesAsks),
+        down: toHuman(book.noAsks),
+      });
+    } catch {
+      // Keep whatever was cached; a stale book beats no book, and the next
+      // tick retries.
+    }
+  }
+
+  /**
+   *  The four-sided book for a round, preferring the live socket-fed one and
+   *  falling back to the RPC snapshot when it is empty.
+   */
+  private bookFor(round: Round): { up: [number, number][]; down: [number, number][] } | null {
+    const snapshot = this.snapshotBooks.get(round.poolAddress.toLowerCase()) ?? null;
+    try {
+      const one = this.oneShareOf(round.poolAddress);
       const book = this.exchange.client.getLiveBinaryOrderBook(round.poolAddress, {
         depth: BOOK_DEPTH,
       });
       const toHuman = (levels: { price: bigint; quantity: bigint }[]): [number, number][] =>
         levels.map((l) => [Number(l.price) / one, Number(l.quantity) / one]);
       // The SDK pre-inverts the NO sides, so a DOWN buy simply consumes noAsks.
-      return { up: toHuman(book.yesAsks), down: toHuman(book.noAsks) };
+      const live = { up: toHuman(book.yesAsks), down: toHuman(book.noAsks) };
+      if (live.up.length > 0 || live.down.length > 0) return live;
+      return snapshot;
     } catch {
-      return null;
+      return snapshot;
     }
   }
 
@@ -503,11 +556,17 @@ export class LiveSource implements ArcadeSource {
     try {
       this.push.account(this.exchange.walletAddress ?? null);
       const balances = await this.exchange.fetchBalance();
-      // The collateral code came off the venue's own markets in indexUnified;
-      // fall back to whatever the balance sheet actually holds.
-      const code = balances[this.collateral] ? this.collateral : (Object.keys(balances)[0] ?? this.collateral);
-      this.collateral = code;
-      this.push.balance(balances[code]?.free ?? 0);
+      const code = pickCollateralCode(Object.keys(balances), this.collateral);
+      if (code) {
+        this.collateral = code;
+        this.push.collateral(code);
+        this.push.balance(balances[code]?.free ?? 0);
+      } else {
+        // Better an unknown balance than a confident wrong one: falling back to
+        // "whatever key came first" once showed a random token's balance under
+        // the collateral label.
+        this.push.balance(null);
+      }
       await this.refreshGas();
     } catch (err) {
       this.push.balance(null);
@@ -548,6 +607,26 @@ export function averageFillProbability(
   const yesProbability = weighted / total;
   const own = direction === "UP" ? yesProbability : 1 - yesProbability;
   return Math.min(0.999, Math.max(0.001, own));
+}
+
+/**
+ *  Match the venue's collateral code against the balance sheet's own spelling.
+ *
+ *  The unified market quotes in "USDC" but the token on Shannon is "tUSDC", so
+ *  an exact lookup misses and the naive fallback -- first key on the object --
+ *  reports an unrelated token's balance. Accepts an exact match, then a
+ *  case-insensitive one, then a testnet "t" prefix in either direction. Returns
+ *  null rather than guessing.
+ */
+export function pickCollateralCode(codes: string[], preferred: string): string | null {
+  const want = preferred.toLowerCase();
+  return (
+    codes.find((c) => c === preferred) ??
+    codes.find((c) => c.toLowerCase() === want) ??
+    codes.find((c) => c.toLowerCase() === `t${want}`) ??
+    codes.find((c) => `t${c.toLowerCase()}` === want) ??
+    null
+  );
 }
 
 function describe(err: unknown): string {

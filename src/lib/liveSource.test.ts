@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { averageFillProbability, walkBook } from "./liveSource.ts";
+import { averageFillProbability, pickCollateralCode, walkBook } from "./liveSource.ts";
 
 describe("walkBook", () => {
   it("spends the stake best-price first", () => {
@@ -125,5 +125,32 @@ describe("averageFillProbability", () => {
     const p = averageFillProbability(info, "UP", 6);
     expect(p).toBeGreaterThan(0);
     expect(p).toBeLessThan(1);
+  });
+});
+
+describe("pickCollateralCode", () => {
+  const sheet = ["tUSDC", "STT", "WETH", "SOL"];
+
+  it("matches the testnet spelling of the venue's collateral", () => {
+    // The unified market quotes "USDC"; the token on Shannon is "tUSDC".
+    expect(pickCollateralCode(sheet, "USDC")).toBe("tUSDC");
+  });
+
+  it("prefers an exact match over a prefixed one", () => {
+    expect(pickCollateralCode(["USDC", "tUSDC"], "USDC")).toBe("USDC");
+  });
+
+  it("matches case-insensitively", () => {
+    expect(pickCollateralCode(["usdc"], "USDC")).toBe("usdc");
+  });
+
+  it("strips a t prefix in the other direction too", () => {
+    expect(pickCollateralCode(["USDC"], "tUSDC")).toBe("USDC");
+  });
+
+  it("returns null rather than guessing an unrelated token", () => {
+    // The old fallback took the first key, reporting WETH under a USDC label.
+    expect(pickCollateralCode(["WETH", "SOL"], "USDC")).toBeNull();
+    expect(pickCollateralCode([], "USDC")).toBeNull();
   });
 });

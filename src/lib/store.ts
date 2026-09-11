@@ -154,6 +154,7 @@ export class ArcadeStore {
       },
       balance: (balance) => this.set({ balance }),
       gas: (gas) => this.set({ gas }),
+      collateral: (collateralSymbol) => this.set({ collateralSymbol }),
       account: (account) => this.set({ account }),
       status: (status: ConnectionStatus, notice = null) => this.set({ status, notice }),
     });

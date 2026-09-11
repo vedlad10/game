@@ -72,6 +72,7 @@ describe.skipIf(!LIVE)(`live preflight · ${NETWORK_ID}`, () => {
     gas: (g) => {
       gasBalance = g;
     },
+    collateral: () => {},
     account: (a) => {
       account = a;
     },

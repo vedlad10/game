@@ -188,10 +188,12 @@ the balance.
   quote UP    47.62x         collateral  USDC
   ```
 
-- The **write path** (place order, redeem) is implemented and typechecked but
-  needs a funded key to exercise; run
-  `SOMNIA_KEY=0x… SOMNIA_BET=1 npm run preflight` to prove it against your own
-  wallet.
+- **The write path is proven on-chain.** A real IOC order filled on Shannon:
+  `BTC-0-11SEP26-0705/tUSDC#YES`, 3.824 shares at 0.55, status closed —
+  [tx `0xc9c14b62…`](https://shannon-explorer.somnia.network/tx/0xc9c14b6280ce2b0ac128f7f64f898eaa7dcac8ab16b3075f9bbbd940536311bc).
+  The same flow works through the UI end to end: import a funded key, tap a
+  side, and the ticket settles and scores itself.
+- Run it yourself with `SOMNIA_KEY=0x… SOMNIA_BET=1 npm run preflight`.
 - A one-sided book is normal on a quiet testnet round — the UI disables that
   side rather than sending an order that cannot cross.
 - A burner wallet needs testnet STT for gas; the collateral faucet mints tUSDC,
