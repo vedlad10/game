@@ -42,6 +42,9 @@ export interface Arcade {
 
 export function useArcade({ network, connection, preference }: UseArcadeOptions): Arcade {
   const [store, setStore] = useState<ArcadeStore | null>(null);
+  // Read inside the mount effect without making it a dependency.
+  const connectionRef = useRef<WalletConnection | null>(connection);
+  connectionRef.current = connection;
   // Bumped whenever a store is replaced, so subscribers re-read a fresh snapshot.
   const generation = useRef(0);
 
@@ -49,14 +52,17 @@ export function useArcade({ network, connection, preference }: UseArcadeOptions)
     let disposed = false;
     generation.current += 1;
 
-    const scope = `${network.id}.${connection?.address ?? "guest"}`;
+    // One store per network, not per wallet -- the scope must not change when
+    // the signer does, or a reconnect would orphan the local ticket history.
+    const scope = network.id;
 
     async function mount(): Promise<void> {
       const build = (): ArcadeSource => {
         if (preference === "demo") return new DemoSource();
+        const current = connectionRef.current;
         return new LiveSource(network, {
-          ...(connection?.privateKey ? { privateKey: connection.privateKey } : {}),
-          ...(connection?.walletClient ? { walletClient: connection.walletClient } : {}),
+          ...(current?.privateKey ? { privateKey: current.privateKey } : {}),
+          ...(current?.walletClient ? { walletClient: current.walletClient } : {}),
         });
       };
 
@@ -92,7 +98,20 @@ export function useArcade({ network, connection, preference }: UseArcadeOptions)
         return null;
       });
     };
-  }, [network, connection, preference]);
+    // NOTE: deliberately not keyed on `connection` -- see the signer effect
+    // below. Rebuilding the store to change wallets blanked the arcade.
+  }, [network, preference]);
+
+  // Swap the signer in place when the wallet changes. Market data, watches and
+  // the price feed are all wallet-independent, so none of it should be thrown
+  // away just because someone connected an account.
+  useEffect(() => {
+    if (!store) return;
+    store.setSigner({
+      ...(connection?.privateKey ? { privateKey: connection.privateKey } : {}),
+      ...(connection?.walletClient ? { walletClient: connection.walletClient } : {}),
+    });
+  }, [store, connection]);
 
   const subscribe = useCallback(
     (listener: () => void) => (store ? store.subscribe(listener) : () => {}),

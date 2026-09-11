@@ -337,6 +337,17 @@ export class ArcadeStore {
     });
   }
 
+  /**
+   *  Point the source at a different wallet without disturbing market data.
+   *  Returns false when the source cannot do it, so the caller can fall back to
+   *  rebuilding.
+   */
+  setSigner(signer: { privateKey?: `0x${string}`; walletClient?: unknown }): boolean {
+    if (!this.source.setSigner) return false;
+    this.source.setSigner(signer);
+    return true;
+  }
+
   async faucet(): Promise<void> {
     await this.source.faucet?.();
   }

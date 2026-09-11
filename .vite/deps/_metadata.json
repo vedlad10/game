@@ -1,0 +1,91 @@
+{
+  "hash": "5480627a",
+  "configHash": "e03de957",
+  "lockfileHash": "426619f8",
+  "browserHash": "b7e1f79e",
+  "optimized": {
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "47a7aff7",
+      "needsInterop": true
+    },
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "b4719c1f",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "c6520cff",
+      "needsInterop": true
+    },
+    "@somnia-chain/markets-sdk": {
+      "src": "../../node_modules/@somnia-chain/markets-sdk/dist/index.js",
+      "file": "@somnia-chain_markets-sdk.js",
+      "fileHash": "647d4707",
+      "needsInterop": false
+    },
+    "viem": {
+      "src": "../../node_modules/viem/_esm/index.js",
+      "file": "viem.js",
+      "fileHash": "b15e11fe",
+      "needsInterop": false
+    },
+    "viem/accounts": {
+      "src": "../../node_modules/viem/_esm/accounts/index.js",
+      "file": "viem_accounts.js",
+      "fileHash": "7131b24c",
+      "needsInterop": false
+    },
+    "@somnia-chain/markets-sdk/chains": {
+      "src": "../../node_modules/@somnia-chain/markets-sdk/dist/chains/index.js",
+      "file": "@somnia-chain_markets-sdk_chains.js",
+      "fileHash": "de2a0d14",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "ccip-LUJ2VAKI": {
+      "file": "ccip-LUJ2VAKI.js"
+    },
+    "native-J7O7T75D": {
+      "file": "native-J7O7T75D.js"
+    },
+    "chunk-YALXW3ZM": {
+      "file": "chunk-YALXW3ZM.js"
+    },
+    "chunk-556T3CNV": {
+      "file": "chunk-556T3CNV.js"
+    },
+    "chunk-35QB63S7": {
+      "file": "chunk-35QB63S7.js"
+    },
+    "chunk-TEKXKFXC": {
+      "file": "chunk-TEKXKFXC.js"
+    },
+    "chunk-V4HZ2GWO": {
+      "file": "chunk-V4HZ2GWO.js"
+    },
+    "chunk-RTKA4PG2": {
+      "file": "chunk-RTKA4PG2.js"
+    },
+    "chunk-7Q7QNF2Z": {
+      "file": "chunk-7Q7QNF2Z.js"
+    },
+    "secp256k1-4NFDCYAF": {
+      "file": "secp256k1-4NFDCYAF.js"
+    },
+    "chunk-S5SRPMHC": {
+      "file": "chunk-S5SRPMHC.js"
+    },
+    "chunk-ENL6RYZW": {
+      "file": "chunk-ENL6RYZW.js"
+    },
+    "chunk-L6OFPWCY": {
+      "file": "chunk-L6OFPWCY.js"
+    }
+  }
+}

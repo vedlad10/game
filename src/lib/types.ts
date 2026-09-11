@@ -183,4 +183,13 @@ export interface ArcadeSource {
   settle(bet: PlacedBet, round: Round): Promise<number>;
   /** Testnet only — mint collateral so a first-time player can play. */
   faucet?(): Promise<void>;
+  /**
+   *  Swap the signing wallet in place.
+   *
+   *  Connecting a wallet used to rebuild the whole source, which threw away
+   *  every market, book and price tick and left the arcade on "Standing by" for
+   *  the twenty seconds it took to hydrate again. Market data does not depend on
+   *  who is signing, so it should survive the swap untouched.
+   */
+  setSigner?(signer: { privateKey?: `0x${string}`; walletClient?: unknown }): void;
 }
