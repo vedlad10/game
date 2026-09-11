@@ -1,222 +1,387 @@
-# STREAK
+<h1 align="center">STREAK</h1>
 
-**The one-tap Up/Down arcade for Somnia Event Contracts.**
+<p align="center"><b>The one-tap Up/Down arcade for Somnia Event Contracts.</b></p>
 
-Built for the Somnia × dreamDEX Event Contracts Hackathon.
+<p align="center">
+  <a href="https://vedlad10.github.io/game/"><b>▶ Live demo</b></a> ·
+  <a href="#try-it-in-60-seconds">Try it in 60s</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#proven-on-chain">On-chain proof</a> ·
+  <a href="./FEEDBACK.md">SDK feedback</a>
+</p>
 
-STREAK turns a rolling up/down series into a game you can play in ten seconds:
-pick a side, watch the countdown, keep your streak alive. Every tap is a real
-IOC order on a real binary pool. There is no backend, no database, and no
-paper-trading mode pretending to be real — the arcade either trades the chain
-or tells you plainly that it is running a simulation.
+<p align="center">
+  <img alt="Somnia Shannon testnet" src="https://img.shields.io/badge/Somnia-Shannon%20testnet-7c6cff">
+  <img alt="chain 50312" src="https://img.shields.io/badge/chain-50312-21d99b">
+  <img alt="77 tests" src="https://img.shields.io/badge/tests-77%20passing-21d99b">
+  <img alt="no backend" src="https://img.shields.io/badge/backend-none-ff4d6d">
+</p>
+
+![STREAK running live on Somnia Shannon testnet](docs/img/hero.png)
+
+> Every number on that screen is live from chain. The round, the countdown, the
+> price, the two multipliers, the settled ticket — none of it is mocked.
 
 ---
 
-## Why this, for this hackathon
+## The problem
 
-The hackathon's stated goal is to **accelerate adoption of Event Contracts**.
-Adoption is a distribution problem, not a features problem: the order book, the
-oracle, and the settlement layer already work. What is missing is a surface that
-someone who has never placed a limit order will actually use.
+**Event Contracts have a distribution problem, not a technology problem.** The
+order book works. The oracle works. Settlement works. What is missing is a
+surface that someone who has never traded will actually use.
 
-Prediction markets ask a new user to price a probability. STREAK asks them to
-pick a direction and watch a clock. Underneath, those are the same action — a
-market buy of a YES or NO outcome token — but only one of them survives contact
-with a first-time user.
+The barrier is one specific question. A prediction market asks a newcomer to
+**price a probability** — *"YES is at 0.62, is that cheap?"* To answer, you need
+a calibrated view **and** you need to know what the price implies. Most people
+can't, and won't try. That single question filters out almost everyone who isn't
+already a trader.
 
-The fit with Somnia is not incidental. Sub-second blocks are what make a 1-minute
-round feel like a game rather than a form submission: the order confirms inside
-the round you placed it in. On a slow chain this product does not exist.
+STREAK asks a different question over the *same trade*:
 
-## What it actually does
+<table>
+<tr><th>A prediction market asks</th><th>STREAK asks</th></tr>
+<tr>
+<td>Is YES at 0.62 mispriced?</td>
+<td>Up or down, before the clock hits zero?</td>
+</tr>
+<tr>
+<td colspan="2" align="center"><i>Underneath, both are a market buy of a YES/NO outcome token on the same binary pool.<br>Only one of them survives contact with a first-time user.</i></td>
+</tr>
+</table>
 
-| | |
-|---|---|
-| **Discovers rounds** | `listBinaryMarkets({ orderBy: "closingSoon" })`, grouped into rolling series by asset and cadence (1m / 5m / 15m / …) |
-| **Prices the sides** | the live four-sided book, materialized locally from chain logs — `getLiveBinaryOrderBook(pool)` |
-| **Charts the round** | the on-chain EMA price oracle via `watchPrice` / `getLivePriceTicks` |
-| **Finds the level** | `getOpeningPrices([marketId])` — the reference answer an up/down market resolves against |
-| **Places the bet** | `createOrder(symbol, "market", "buy", shares, …, { timeInForce: "IOC" })` |
-| **Settles** | `redeem(symbol, shares)` against the settlement singleton, automatically, when the round resolves |
+The trade doesn't need to change. The question does.
 
-All of it through [`@somnia-chain/markets-sdk`](https://www.npmjs.com/package/@somnia-chain/markets-sdk),
-with contract addresses read from the SDK's generated constants rather than
-copied by hand.
+---
 
-## Three things that make it different
+## How it works
 
-### 1. Your score is derived from the chain, not stored on a server
+### 1 · A rolling series becomes a game round
 
-There is no backend. A player's rank, XP, streak and PnL are a **pure function**
-of their settled bets, and every settled bet is an on-chain fill plus an
-oracle-resolved outcome. Replay the same fills and you get the same number —
-anyone can verify a score without trusting us, because there is no "us" to
-trust. `src/game/scoring.ts` is that function, and it is 200 lines with no
-imports.
+An Event Contract is a binary market on a **rolling series** — a new one every
+1m, 5m, 15m or 1h, back to back. STREAK treats each as a round with a countdown.
 
-### 2. The score rewards being right when the market was not
+<img src="docs/img/round-card.png" width="640" alt="The round card: countdown, target level, live price chart, and the two sides">
 
-XP is weighted by the **entry probability**, which on a binary market is just
-the price you paid. Winning a side the book priced at 0.25 scores far more than
-winning one it priced at 0.95. Betting big on a near-certainty is not skill, and
-a leaderboard that pays for volume just rewards whoever had the most collateral.
+The dashed line is the **target** the outcome settles against. The chart is the
+on-chain EMA price oracle. The line turns green above the target and red below,
+so *"am I winning"* needs no arithmetic.
+
+### 2 · One tap is one real order
+
+`▲ UP` buys the YES outcome; `▼ DOWN` buys NO. The multiple on each button comes
+from walking the **live order book** — not a house-set payout. The screenshot
+above shows UP at `10.42×` and DOWN at `1.08×`: the book thinks DOWN is nearly
+certain, so UP pays like the long shot it is.
+
+A tap sends a market **IOC** order to that round's binary pool, signed locally,
+confirmed in one round-trip.
+
+### 3 · It settles and scores itself
+
+<img src="docs/img/score.png" width="380" alt="Run panel: streak, XP, win rate, net PnL"> <img src="docs/img/tickets.png" width="380" alt="A settled ticket showing entry price and payout">
+
+When the oracle resolves the round, the position is redeemed automatically and
+the result folds into your run. Every ticket records the **price you actually
+got**, because that is what the score is computed from.
+
+---
+
+## Architecture
+
+Two interchangeable sources satisfy one interface, so the entire UI is written
+once and never knows which is behind it. That is what lets the arcade degrade to
+a clearly-labelled simulation instead of a dead screen.
+
+```mermaid
+flowchart TB
+    subgraph UI["UI · React components"]
+        RC["RoundCard<br/><i>countdown · UP/DOWN</i>"]
+        PC["PriceChart<br/><i>inline SVG</i>"]
+        SP["ScorePanel<br/><i>streak · XP · rank</i>"]
+        WP["WalletPanel<br/><i>burner · import · gas</i>"]
+    end
+
+    subgraph STATE["State · everything derived lives here"]
+        UA["useArcade<br/><i>useSyncExternalStore</i>"]
+        AS["ArcadeStore<br/><i>live round · bet lifecycle · settlement</i>"]
+        SC["scoring.ts<br/><i>pure · no imports</i>"]
+        RD["rounds.ts<br/><i>series → rounds · pure</i>"]
+    end
+
+    subgraph SRC["Sources · one ArcadeSource interface"]
+        LS["LiveSource<br/><i>the real integration</i>"]
+        DS["DemoSource<br/><i>seeded simulation</i>"]
+    end
+
+    subgraph CHAIN["Somnia Shannon · chain 50312"]
+        IDX[("Indexer<br/>GraphQL")]
+        WS[("WebSocket RPC<br/><i>live tail</i>")]
+        OR[("Price oracle<br/><i>EMA feed</i>")]
+        BP["BinaryPool<br/><i>order book</i>"]
+        ST["BinarySettlement"]
+    end
+
+    RC & PC & SP & WP --> UA --> AS
+    AS --> SC & RD
+    AS -->|"raw facts in<br/>orders out"| LS
+    AS -.->|"fallback"| DS
+    LS -->|"listBinaryMarkets"| IDX
+    LS -->|"watchMarket · live book"| WS
+    LS -->|"watchPrice"| OR
+    LS -->|"createOrder · IOC"| BP
+    LS -->|"redeem"| ST
+
+    classDef ui fill:#12131c,stroke:#7c6cff,stroke-width:2px,color:#e9eaf2
+    classDef st fill:#12131c,stroke:#21d99b,stroke-width:2px,color:#e9eaf2
+    classDef sr fill:#12131c,stroke:#ffc857,stroke-width:2px,color:#e9eaf2
+    classDef ch fill:#12131c,stroke:#ff4d6d,stroke-width:2px,color:#e9eaf2
+    class RC,PC,SP,WP ui
+    class UA,AS,SC,RD st
+    class LS,DS sr
+    class IDX,WS,OR,BP,ST ch
+
+    %% Transparent containers so the diagram sits correctly on GitHub's
+    %% light OR dark theme rather than on mermaid's default pale fill.
+    style UI fill:none,stroke:#7c6cff,stroke-dasharray:4 4
+    style STATE fill:none,stroke:#21d99b,stroke-dasharray:4 4
+    style SRC fill:none,stroke:#ffc857,stroke-dasharray:4 4
+    style CHAIN fill:none,stroke:#ff4d6d,stroke-dasharray:4 4
+```
+
+**The split that carries the design:** sources produce *raw facts*; the store owns
+*everything derived*. A source reports markets, prices and fills. The store
+decides which round is live, which bets have settled and what the score is. That
+is why adding the simulation cost one file and zero changes to the UI.
+
+### What happens when you tap UP
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor P as Player
+    participant S as ArcadeStore
+    participant L as LiveSource
+    participant B as BinaryPool
+    participant O as Oracle
+
+    P->>S: tap ▲ UP · stake 5
+    S->>S: ticket → "pending" (UI updates instantly)
+    S->>L: placeBet(round, UP, 5)
+    Note over L: stake is a COLLATERAL budget,<br/>createOrder sizes in SHARES
+    L->>L: walkBook(asks, 5) → shares + avg price
+    L->>B: createOrder(market, buy, IOC, 5% slip)
+    B-->>L: {filled, fills[]}
+    L->>L: VWAP of fills → true entry probability
+    L-->>S: {shares, entryProbability, txHash}
+    S->>S: ticket → "open"
+
+    Note over O,B: …the round expires…
+    O->>B: resolve(payout vector)
+    S->>L: settle(bet, round)
+    L->>B: redeem(shares)
+    B-->>L: collateral
+    S->>S: applyBet() → streak, XP, PnL
+```
+
+### Round lifecycle
+
+Phase comes from the market's **own timestamps**, not its `status` field — the
+SDK documents that `Listed → Trading → Settling` are timestamp-implicit and emit
+no event, so `status` can lag the wall clock. Only the terminal states are
+trusted from `status`, because those *do* emit.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> upcoming: series mints market
+    upcoming --> open: tradingStart ≤ now
+    open --> settling: now ≥ expiry
+    settling --> resolved: oracle posts one-hot vector
+    settling --> voided: market voided
+    resolved --> [*]: redeem → score
+    voided --> [*]: stake refunded
+
+    note right of open
+        The ONLY phase a bet
+        can be placed in
+    end note
+```
+
+---
+
+## Scoring: reward being right when the market was wrong
+
+A leaderboard that counts volume just rewards whoever had the most capital. XP is
+weighted by **the price you got in at**, which on a binary market *is* the
+market's implied probability:
 
 ```
 xp = 100 × (0.5 + (1 − entryProbability)) × streakMultiplier
 ```
 
-The streak multiplier grows a quarter per consecutive win and caps at 3×, so a
-run is worth protecting but cannot run away.
+| Entry price | Market's view | XP for a win |
+|---|---|---|
+| `0.95` | near-certainty | **55** |
+| `0.50` | coin flip | **100** |
+| `0.20` | 4:1 long shot | **130** |
+| `0.05` | 19:1 long shot | **145** |
 
-### 3. It degrades honestly instead of dying
+The streak multiplier adds `0.25` per consecutive win and caps at `3×`, so a run
+is worth protecting but cannot run away.
 
-If the indexer or RPC is unreachable, the arcade mounts a deterministic
-simulation and says so in a banner and a badge — it never renders simulated
-numbers as chain data. The two sources implement the same `ArcadeSource`
-interface, so the entire UI is written once and neither mode is a second-class
-citizen. Round boundaries in the simulation use the same
-`floor(now / cadence) × cadence` rule as a real series, so rollover exercises
-the identical code path.
+**There is no backend.** Rank, streak and PnL are a pure function of settled
+bets, and every settled bet is an on-chain fill plus an oracle-resolved outcome.
+Replay the same fills and you get the same number — anyone can verify a score
+without trusting a server, because there is no server.
 
-## Try it
+<img src="docs/img/history.png" width="640" alt="Recent rounds as a run of outcome pips">
 
-**Live demo:** https://vedlad10.github.io/game/
+---
 
-- `?mode=demo` — play the simulation, no wallet, no chain
-- `?network=mainnet` — point at Somnia mainnet instead of testnet
+## Proven on-chain
 
-Fastest path on testnet:
+Not "typechecks against the SDK" — **actually filled on Shannon:**
 
-1. Open the demo, click **Play with a burner** — a throwaway key is generated in
-   your browser. It is disposable and labelled as such; never fund it with
-   anything real.
-2. Get testnet **STT** for gas from the [Somnia testnet faucet](https://testnet.somnia.network/)
-   (the hackathon Telegram also hands out STT).
-3. Click **Mint test USDC** for collateral.
-4. Pick a side before the countdown hits zero.
+```
+symbol   BTC-0-11SEP26-0705/tUSDC#YES
+filled   3.824 shares @ 0.55   ·   status: closed
+tx       0xc9c14b6280ce2b0ac128f7f64f898eaa7dcac8ab16b3075f9bbbd940536311bc
+```
 
-Or connect a browser wallet — STREAK will offer to add the Somnia network if it
-does not have it.
+[View on the Shannon explorer →](https://shannon-explorer.somnia.network/tx/0xc9c14b6280ce2b0ac128f7f64f898eaa7dcac8ab16b3075f9bbbd940536311bc)
+
+`npm run preflight` drives the **real** `LiveSource` against the venue in ten
+dependency-ordered steps and prints what it finds:
+
+```
+status      ready          live round  BTC 1m — 4s left
+series      8              price       77372.435   (on-chain oracle)
+active      BTC:60         reference   77425.62
+odds        UP 0.021       ticks       211
+quote UP    47.62×         collateral  tUSDC
+```
+
+Running this against a live venue is what found the bugs that mattered — see
+[Built by running it](#built-by-running-it).
+
+---
+
+## Try it in 60 seconds
+
+**[vedlad10.github.io/game](https://vedlad10.github.io/game/)**
+
+| | |
+|---|---|
+| `?mode=demo` | play the simulation — no wallet, no chain, no gas |
+| `?network=mainnet` | point at Somnia mainnet instead of testnet |
+
+To trade for real on testnet:
+
+1. Get **STT for gas** from the [Somnia faucet](https://testnet.somnia.network/)
+   *(the collateral faucet mints tUSDC, not gas — you need both)*
+2. **Connect wallet**, or **Import a funded key**, or **Play with a burner**
+3. **Mint test tUSDC** for collateral
+4. Pick a side before the countdown hits zero
+
+> A judge opening the live link sees real markets and real odds immediately, but
+> cannot place an order without a funded wallet. The app detects this and says so
+> with a faucet link, rather than failing with a contract error.
+
+---
 
 ## Run it locally
 
 ```sh
 npm install
-npm run dev        # http://localhost:5173/game/
-npm test           # 58 unit tests, no network required
+npm run dev          # http://localhost:5173/game/
+npm test             # 77 tests, no network required
 npm run typecheck
 npm run build
 ```
 
-### Verifying the live integration
-
-`npm run preflight` drives the **real** `LiveSource` against Shannon testnet and
-reports, step by step, which part of the integration works — connect, discover
-series, find the open round, read the book, read the oracle, resolve the opening
-level, quote a stake, and (opt-in) place one real order.
+### Verify the live integration
 
 ```sh
 npm run preflight                                   # read-only, no wallet, no gas
-SOMNIA_KEY=0xabc… npm run preflight                 # + balance and faucet
-SOMNIA_KEY=0xabc… SOMNIA_BET=1 npm run preflight    # + ONE real order (spends collateral)
-SOMNIA_NETWORK=mainnet npm run preflight            # against mainnet instead
+SOMNIA_KEY=0x… npm run preflight                    # + balance, gas and faucet
+SOMNIA_KEY=0x… SOMNIA_BET=1 npm run preflight       # + ONE real order
+SOMNIA_NETWORK=mainnet npm run preflight            # against mainnet
 ```
 
-It is excluded from `npm test` so the offline suite stays green, and each step
-prints what it found — a failure tells you *where* the integration stands rather
-than just going red. This is the check to run before recording a demo.
+Excluded from `npm test` so the offline suite stays green. Write steps are gated
+behind explicit env vars, so no order is ever placed by accident.
 
-## How it is put together
+---
+
+## Built by running it
+
+The project was developed in a sandbox with no network access to Somnia. The
+first run against a live venue found seven bugs that typechecking could never
+have caught — each one is a commit with its measurement in the message:
+
+| Bug | What was actually happening |
+|---|---|
+| **No rounds, ever** | `orderBy: "closingSoon"` sorts by expiry ascending across *every* market the venue ever had. 200 rows came back that expired seven weeks earlier — all Finalized, zero open |
+| **Ghost series tabs** | The venue returns `298` *and* `300` for one 5m series, `3599` beside `3600`. Keying on the raw cadence split one series into several, each with its own idea of which round was live |
+| **Empty chart** | The price oracle returns its tape **newest-first**. The projection assumed oldest-first, so `span` went negative, clamped to `1`, and threw the line thousands of units off-canvas |
+| **No price at all** | The oracle is a *separate* GraphQL endpoint that must be configured explicitly |
+| **Permanent "not posted yet"** | Shannon runs **both** fixed-strike and reference-mode contracts. Fixed-strike rounds have no opening price and never will — their threshold is the strike, known at creation |
+| **Dead buttons** | Odds came only from the socket-materialized book; when it didn't hydrate, plain RPC showed 3–4 levels a side the whole time |
+| **"Missing or invalid parameters"** | Actually an empty gas balance. Now detected up front, named, and linked to the faucet |
+
+---
+
+## Project layout
 
 ```
 src/
-  game/scoring.ts     score from settled bets (pure, no imports)
+  game/scoring.ts       score from settled bets · pure, no imports
   lib/
-    rounds.ts         rolling series → game rounds (pure)
-    types.ts          the ArcadeSource contract both modes satisfy
-    liveSource.ts     the real integration: SDK, book, oracle, orders, redeem
-    demoSource.ts     the seeded simulation
-    store.ts          derived state, bet lifecycle, settlement
-    wallet.ts         burner + injected wallet
-    networks.ts       testnet/mainnet config from the SDK's constants
-  components/         round card, chart, score, tickets, history, wallet
-  hooks/useArcade.ts  React binding + the live→demo fallback
+    rounds.ts           rolling series → game rounds · pure
+    types.ts            the ArcadeSource contract both modes satisfy
+    liveSource.ts       SDK, book, oracle, orders, redeem
+    demoSource.ts       seeded simulation
+    store.ts            derived state, bet lifecycle, settlement
+    wallet.ts           burner · injected · imported key
+    networks.ts         testnet/mainnet from the SDK's own constants
+  components/           round card · chart · score · tickets · wallet
+  hooks/useArcade.ts    React binding + live→demo fallback
 ```
 
-The split that carries the design: **sources produce raw facts, the store owns
-everything derived.** A source reports markets, prices and fills; the store
-decides which round is live, which bets have settled, and what the score is.
-That is why adding the simulation cost one file and zero changes to the UI.
+**77 tests** cover phase boundaries, overlapping trading windows, series grouping
+with real cadence jitter, streak and void handling, rank progression, book
+walking with thin and malformed levels, VWAP fill pricing including the NO-side
+complement, and chart projection from a reversed feed.
 
-### Two decisions worth calling out
+---
 
-**Round phase comes from timestamps, not `status`.** The SDK documents that the
-Listed → Trading → Settling transitions are timestamp-implicit and emit no
-event, so a market's `status` field can lag the wall clock. Only the terminal
-Resolved / Voided states emit, so those are the only ones trusted from `status`.
-Getting this backwards shows up as an arcade that lets you bet on a closed round.
+## Built with
 
-**A stake is a collateral budget; `createOrder` sizes in outcome tokens.** The
-book is walked to convert one into the other, then the fills decoded from the
-placement give the true average entry — which is what the score uses, not the
-pre-trade estimate.
+[`@somnia-chain/markets-sdk`](https://www.npmjs.com/package/@somnia-chain/markets-sdk)
+— the same package the official
+[starter template](https://github.com/IronicDeGawd/ec-dreamdex-hackathon-template)
+pins — plus `viem`, React 19 and Vite. Contract addresses come from the SDK's
+generated constants, never hand-copied.
 
-## Testing
+- [DreamDEX Event Contracts docs](https://docs.dreamdex.io/developers/event-contracts)
+- [DreamDEX Bot Kit](https://github.com/somnia-chain/dreamdex-bot-kit)
+- [`FEEDBACK.md`](./FEEDBACK.md) — our SDK & documentation feedback report: seven
+  concrete points of friction and four things that worked unusually well
 
-58 unit tests over the logic that can be verified without a chain: round phase
-boundaries, overlapping trading windows, series grouping, streak and void
-handling, rank progression, book walking with thin and malformed levels, and
-volume-weighted fill pricing including the NO-side complement.
-
-The end-to-end game loop was verified in a real browser: place a bet, roll past
-the round boundary, and watch it settle, pay out, advance the streak and move
-the balance.
+---
 
 ## Status and limits
 
-- **The live path is verified against Somnia Shannon testnet.** `npm run
-  preflight` passes end to end: 200 markets discovered, eight rolling series,
-  the open round found, live odds off the book, the on-chain price oracle, the
-  round's reference level, and a stake quote — plus a store-level check that
-  the full app data path derives a playable round. Sample run:
-
-  ```
-  status      ready          live round  BTC 1m — 4s left
-  series      8              price       77372.435   (live oracle)
-  active      BTC:60         reference   77425.62
-  odds        UP 0.021       ticks       211
-  quote UP    47.62x         collateral  USDC
-  ```
-
-- **The write path is proven on-chain.** A real IOC order filled on Shannon:
-  `BTC-0-11SEP26-0705/tUSDC#YES`, 3.824 shares at 0.55, status closed —
-  [tx `0xc9c14b62…`](https://shannon-explorer.somnia.network/tx/0xc9c14b6280ce2b0ac128f7f64f898eaa7dcac8ab16b3075f9bbbd940536311bc).
-  The same flow works through the UI end to end: import a funded key, tap a
-  side, and the ticket settles and scores itself.
-- Run it yourself with `SOMNIA_KEY=0x… SOMNIA_BET=1 npm run preflight`.
-- A one-sided book is normal on a quiet testnet round — the UI disables that
-  side rather than sending an order that cannot cross.
-- A burner wallet needs testnet STT for gas; the collateral faucet mints tUSDC,
-  not gas. The UI says so.
-- Shannon runs **both** kinds of event contract: fixed-strike ("at or above
-  77305.31") and reference ("at or above its opening price"). The UI handles
-  both and labels them differently — "target" vs "opened at".
-- Bets are cached in `localStorage` so a refresh does not lose a session. The
-  score is derived, so clearing it loses history, not standing.
-
-## Hackathon resources this was built against
-
-- SDK: [`@somnia-chain/markets-sdk`](https://www.npmjs.com/package/@somnia-chain/markets-sdk)
-  — the same package the official
-  [starter template](https://github.com/IronicDeGawd/ec-dreamdex-hackathon-template) pins
-- [DreamDEX Event Contracts docs](https://docs.dreamdex.io/developers/event-contracts)
-- [DreamDEX Bot Kit](https://github.com/somnia-chain/dreamdex-bot-kit)
-- Shannon testnet, chain `50312`; collateral tUSDC; gas STT
-
-[`FEEDBACK.md`](./FEEDBACK.md) is our SDK and documentation feedback report —
-seven concrete points of friction and four things that worked unusually well.
-
-## Credits
+- ✅ **Read path verified** end to end against Shannon — markets, series, live
+  odds, oracle price, reference level, stake quotes, and a store-level check that
+  the full app data path derives a playable round.
+- ✅ **Write path proven on-chain** — real IOC order filled, redeemed and scored.
+- ⚠️ **Liquidity is a venue property.** A quiet testnet round can be one-sided;
+  the UI disables that side rather than showing a price it cannot fill.
+- ⚠️ **Gas onboarding is unsolved and not solvable here.** The Somnia faucet is
+  captcha-gated with no API, so the app cannot fund a burner for you. It detects
+  an empty balance and tells you exactly what to do instead.
+- ⚠️ **Not audited, not for real funds.** Testnet is the default for a reason.
 
 The original Ring Runner game that lived in this repo is preserved at
 [`/legacy/`](https://vedlad10.github.io/game/legacy/).
