@@ -212,12 +212,12 @@ export interface Series {
   markets: RoundSource[];
 }
 
-/** Display order for assets; everything unlisted sorts after them. */
-const ASSET_ORDER = ["BTC", "ETH"];
+/** The assets the arcade leads with; everything else sorts behind them. */
+const HEADLINE_ASSETS = new Set(["BTC", "ETH"]);
 
+/** 0 for a headline asset, 1 for anything else — the primary sort key. */
 function assetRank(asset: string): number {
-  const i = ASSET_ORDER.indexOf(asset.toUpperCase());
-  return i === -1 ? ASSET_ORDER.length : i;
+  return HEADLINE_ASSETS.has(asset.toUpperCase()) ? 0 : 1;
 }
 
 export function groupIntoSeries(markets: RoundSource[]): Series[] {
@@ -232,10 +232,12 @@ export function groupIntoSeries(markets: RoundSource[]): Series[] {
     }
     s.markets.push(m);
   }
-  // Headline assets first, then fastest cadence -- the arcade wants BTC 1m on
-  // top, not a GENESIS-07 test series that happens to roll every 14 minutes.
-  // Anything unranked keeps its place behind them rather than being hidden:
-  // these are real markets on the venue and a player may well want them.
+  // Headline assets first, then fastest cadence. Ranking by asset ALONE would
+  // group every BTC cadence together and push ETH 1m below BTC 24h, which is
+  // not what a tab strip wants; ranking by cadence alone let a GENESIS-07 test
+  // series on a 14-minute roll sit between BTC 5m and BTC 15m. Ordering on
+  // (headline, cadence) gives BTC 1m, ETH 1m, BTC 5m, ETH 5m ... and parks the
+  // test series at the end -- kept, not hidden, since they are real markets.
   return [...byKey.values()].sort(
     (a, b) =>
       assetRank(a.asset) - assetRank(b.asset) ||
