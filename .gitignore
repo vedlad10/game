@@ -5,3 +5,6 @@ dist/
 
 # Local diagnostic scratch scripts
 diag*.mjs
+
+# Vite dev-server cache
+.vite/
